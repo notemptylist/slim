@@ -4,7 +4,7 @@ package commands
 
 import (
 	"encoding/json"
-	"io/ioutil"
+	"fmt"
 	"os"
 	"strconv"
 	"strings"
@@ -15,8 +15,8 @@ import (
 
 	"github.com/docker-slim/docker-slim/pkg/app"
 	"github.com/docker-slim/docker-slim/pkg/app/master/config"
-	"github.com/docker-slim/docker-slim/pkg/app/master/docker/dockerclient"
 	"github.com/docker-slim/docker-slim/pkg/app/master/signals"
+	"github.com/docker-slim/docker-slim/pkg/docker/dockerclient"
 )
 
 func GetContainerRunOptions(ctx *cli.Context) (*config.ContainerRunOptions, error) {
@@ -38,7 +38,7 @@ func GetContainerRunOptions(ctx *cli.Context) (*config.ContainerRunOptions, erro
 	}
 	hostConfigFileName := ctx.String(FlagCROHostConfigFile)
 	if len(hostConfigFileName) > 0 {
-		hostConfigBytes, err := ioutil.ReadFile(hostConfigFileName)
+		hostConfigBytes, err := os.ReadFile(hostConfigFileName)
 		if err != nil {
 			log.WithFields(log.Fields{
 				"op":        op,
@@ -226,7 +226,7 @@ func GetContinueAfterModeNames(continueAfter string) []string {
 	return strings.Split(continueAfter, "&")
 }
 
-func GetContainerOverrides(ctx *cli.Context) (*config.ContainerOverrides, error) {
+func GetContainerOverrides(xc *app.ExecutionContext, ctx *cli.Context) (*config.ContainerOverrides, error) {
 	const op = "commands.GetContainerOverrides"
 
 	doUseEntrypoint := ctx.String(FlagEntrypoint)
@@ -235,11 +235,16 @@ func GetContainerOverrides(ctx *cli.Context) (*config.ContainerOverrides, error)
 
 	volumesList := ctx.StringSlice(FlagVolume)
 	labelsList := ctx.StringSlice(FlagLabel)
-
+	envList, envErr := ParseEnvFile(ctx.String(FlagEnvFile))
+	if envErr != nil {
+		return nil, envErr
+	}
+	env := validateAndCleanEnvVariables(ctx.StringSlice(FlagEnv), xc)
+	envList = append(envList, env...)
 	overrides := &config.ContainerOverrides{
 		User:     ctx.String(FlagUser),
 		Workdir:  ctx.String(FlagWorkdir),
-		Env:      ctx.StringSlice(FlagEnv),
+		Env:      envList,
 		Network:  ctx.String(FlagNetwork),
 		Hostname: ctx.String(FlagHostname),
 	}
@@ -401,4 +406,40 @@ func GetDockerClientConfig(ctx *cli.Context) *config.DockerClient {
 	getEnv(dockerclient.EnvDockerCertPath)
 
 	return config
+}
+
+func validateAndCleanEnvVariables(envList []string, xc *app.ExecutionContext) []string {
+	xc.Out.Info("Validating and cleaning environment variables")
+
+	var envStaging []string
+
+	if len(envList) == 0 {
+		return envStaging
+	}
+
+	for i, kv := range envList {
+		kv = strings.TrimSpace(kv)
+
+		if len(kv) == 0 {
+			continue
+		}
+
+		if !strings.ContainsAny(kv, "=") {
+			xc.Out.Prompt(fmt.Sprintf("Malformed env key/value (idx: %v kv: %s). Excluding from list", i, kv))
+			continue
+		}
+
+		envKeyValue := strings.SplitN(kv, "=", 2)
+		keyIsEmpty := len(strings.TrimSpace(envKeyValue[0])) == 0
+		valIsEmpty := len(strings.TrimSpace(envKeyValue[1])) == 0
+
+		if len(envKeyValue) == 2 && !keyIsEmpty && !valIsEmpty {
+			xc.Out.Prompt(fmt.Sprintf("Adding key value %s to list of env values", kv))
+			envStaging = append(envStaging, kv)
+		} else {
+			xc.Out.Prompt(fmt.Sprintf("Malformed env key/value (idx: %v kv: %s). Excluding from list", i, kv))
+		}
+	}
+
+	return envStaging
 }

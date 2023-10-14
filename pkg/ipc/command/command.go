@@ -40,6 +40,7 @@ type Message interface {
 
 // StartMonitor contains the start monitor command fields
 type StartMonitor struct {
+	ObfuscateMetadata            bool                          `json:"obfuscate_metadata"`
 	RTASourcePT                  bool                          `json:"rta_source_ptrace"`
 	AppName                      string                        `json:"app_name"`
 	AppArgs                      []string                      `json:"app_args,omitempty"`
@@ -58,6 +59,7 @@ type StartMonitor struct {
 	IncludeBins                  []string                      `json:"include_bins,omitempty"`
 	IncludeExes                  []string                      `json:"include_exes,omitempty"`
 	IncludeShell                 bool                          `json:"include_shell,omitempty"`
+	IncludeWorkdir               string                        `json:"include_workdir,omitempty"`
 	IncludeCertAll               bool                          `json:"include_cert_all,omitempty"`
 	IncludeCertBundles           bool                          `json:"include_cert_bundles,omitempty"`
 	IncludeCertDirs              bool                          `json:"include_cert_dirs,omitempty"`

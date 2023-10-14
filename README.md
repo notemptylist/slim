@@ -19,11 +19,11 @@
 
 Note that **DockerSlim** is now just **Slim** (**SlimToolkit** is the full name, so it's easier to find it online) to show its growing support for additional container tools and runtimes in the cloud native ecosystem.
 
-**Slim** was created by [Kyle](https://github.com/kcq) [Quest](https://twitter.com/kcqon) and it's been improved by many [contributors](https://github.com/slimtoolkit/slim/graphs/contributors). The project is supported by [Slim.AI](https://slim.ai).
+**Slim** is now a CNCF Sandbox project. It was created by [Kyle](https://github.com/kcq) [Quest](https://twitter.com/kcqon) and it's been improved by many [contributors](https://github.com/slimtoolkit/slim/graphs/contributors). The project is supported by [Slim.AI](https://slim.ai).
 
 ## Overview
 
-Slim is a tool for developers with a number of different commands (`build`, `xray`, `lint`, `debug` and others) to simplify and optimize your developer experience with containers. It makes your containers better, smaller and more secure while providing advanced visibility and improved usability working with the original and minified containers.
+Slim allows developers to inspect, optimize and debug their containers using its `xray`, `lint`, `build`, `debug` (and other) commands. It simplifies and improves your developer experience building, customizing and using containers. It makes your containers better, smaller and more secure while providing advanced visibility and improved usability working with the original and minified containers.
 
 Don't change anything in your container image and minify it by up to 30x making it secure too! Optimizing images isn't the only thing it can do though. It can also help you understand and author better container images.
 
@@ -79,13 +79,12 @@ archlinux                 latest              ...        ...         467MB
 
 Feel free to join any of these channels or just open a new [`Github issue`](https://github.com/slimtoolkit/slim/issues) if you want to chat or if you need help.
 
-* [`YouTube channel`](https://www.youtube.com/channel/UCy7RHjJlaBhpCCbChrd8POA)
-* [`Gitter channel`](https://gitter.im/docker-slim/community)
+* [`CNCF Slack channel`](https://cloud-native.slack.com/archives/C059QP1RH1S)
 * [`Discord server`](https://discord.gg/9tDyxYS)
+* [`Gitter channel`](https://gitter.im/docker-slim/community)
 * [`Discussions`](https://github.com/slimtoolkit/slim/discussions) (new)
-* [`Twitter`](https://twitter.com/DockerSlim)
-* [`Slack`](https://join.slack.com/t/dockerslimcommunity/shared_invite/zt-g89azob8-_DzOrn0zLFUT2ErTLu1X9A)
-* Original `IRC channel` on `freenode` (not used anymore, but we can start using it again :-): \#`dockerslim`
+* [`Twitter`](https://twitter.com/SlimToolkit)
+* [`YouTube channel`](https://www.youtube.com/channel/UCy7RHjJlaBhpCCbChrd8POA)
 
 ## Slim on the Internet
 
@@ -162,6 +161,8 @@ Elixir application images:
   - [`LINT` COMMAND OPTIONS](#lint-command-options)
   - [`XRAY` COMMAND OPTIONS](#xray-command-options)
   - [`BUILD` COMMAND OPTIONS](#build-command-options)
+  - [`DEBUG` COMMAND OPTIONS](#debug-command-options)
+  - [`REGISTRY` COMMAND OPTIONS](#registry-command-options)
 - [RUNNING CONTAINERIZED](#running-containerized)
 - [DOCKER CONNECT OPTIONS](#docker-connect-options)
 - [HTTP PROBE COMMANDS](#http-probe-commands)
@@ -187,8 +188,6 @@ Elixir application images:
   - [DYNAMIC ANALYSIS OPTIONS](#dynamic-analysis-options)
   - [SECURITY](#security)
   - [CHALLENGES](#challenges)
-- [DEVELOPMENT PROGRESS](#development-progress)
-  - [TODO](#todo)
 - [ORIGINS](#origins)
 - [MINIFIED IMAGES ON DOCKER HUB](#minified-images-on-docker-hub)
 - [LICENSE](#license)
@@ -197,9 +196,9 @@ Elixir application images:
 
 ## RECENT UPDATES
 
-Latest version: 1.40.0 (1/15/2023)
+Latest version: 1.40.4 (8/25/2023)
 
-The 1.37.x-1.40.x releases add an experimental docker-compose support and various improved application tracing capabilities for the build command.
+The 1.40.4 release update the `debug` command improving its support for kubernetes and enhancing the overall debugging experience.
 
 For more info about the latest release see the [`CHANGELOG`](CHANGELOG.md).
 
@@ -216,23 +215,24 @@ slim update
 
 1. Download the zip package for your platform.
 
-   - [Latest Mac binaries](https://downloads.dockerslim.com/releases/1.40.0/dist_mac.zip) (`curl -L -o ds.zip https://downloads.dockerslim.com/releases/1.40.0/dist_mac.zip`)
+   - [Latest Mac binaries](https://downloads.dockerslim.com/releases/1.40.4/dist_mac.zip) (`curl -L -o ds.zip https://downloads.dockerslim.com/releases/1.40.4/dist_mac.zip`)
 
-   - [Latest Mac M1 binaries](https://downloads.dockerslim.com/releases/1.40.0/dist_mac_m1.zip) (`curl -L -o ds.zip https://downloads.dockerslim.com/releases/1.40.0/dist_mac_m1.zip`)
+   - [Latest Mac M1 binaries](https://downloads.dockerslim.com/releases/1.40.4/dist_mac_m1.zip) (`curl -L -o ds.zip https://downloads.dockerslim.com/releases/1.40.4/dist_mac_m1.zip`)
 
-   - [Latest Linux binaries](https://downloads.dockerslim.com/releases/1.40.0/dist_linux.tar.gz) (`curl -L -o ds.tar.gz https://downloads.dockerslim.com/releases/1.40.0/dist_linux.tar.gz`)
+   - [Latest Linux binaries](https://downloads.dockerslim.com/releases/1.40.4/dist_linux.tar.gz) (`curl -L -o ds.tar.gz https://downloads.dockerslim.com/releases/1.40.4/dist_linux.tar.gz`)
 
-   - [Latest Linux ARM binaries](https://downloads.dockerslim.com/releases/1.40.0/dist_linux_arm.tar.gz) (`curl -L -o ds.tar.gz https://downloads.dockerslim.com/releases/1.40.0/dist_linux_arm.tar.gz`)
+   - [Latest Linux ARM binaries](https://downloads.dockerslim.com/releases/1.40.4/dist_linux_arm.tar.gz) (`curl -L -o ds.tar.gz https://downloads.dockerslim.com/releases/1.40.4/dist_linux_arm.tar.gz`)
 
-   - [Latest Linux ARM64 binaries](https://downloads.dockerslim.com/releases/1.40.0/dist_linux_arm64.tar.gz) (`curl -L -o ds.tar.gz https://downloads.dockerslim.com/releases/1.40.0/dist_linux_arm64.tar.gz`)
+   - [Latest Linux ARM64 binaries](https://downloads.dockerslim.com/releases/1.40.4/dist_linux_arm64.tar.gz) (`curl -L -o ds.tar.gz https://downloads.dockerslim.com/releases/1.40.4/dist_linux_arm64.tar.gz`)
 
 2. Unzip the package and optionally move it to your bin directory.
 
 Linux (for non-intel replace `dist_linux` with the platform-specific extracted path):
 ```
-tar -xvf ds.tar.gz
+tar -xvf dist_linux.tar.gz
 mv  dist_linux/docker-slim /usr/local/bin/
-mv  dist_linux/docker-slim-sensor /usr/local/bin/
+mv  dist_linux/slim-sensor /usr/local/bin/
+mv  dist_linux/slim /usr/local/bin/
 ```
 Mac:
 ```
@@ -276,7 +276,7 @@ Powered by Slim. It will help you understand and troubleshoot your application c
 
 ## BASIC USAGE INFO
 
-`slim [global flags] [lint|xray|build|profile|update|version|help] [command-specific flags] <IMAGE_ID_OR_NAME>`
+`slim [global flags] [xray|build|profile|run|debug|lint|merge|update|version|appbom|help] [command-specific flags] <IMAGE_ID_OR_NAME>`
 
 If you don't specify any command `slim` will start in the interactive prompt mode.
 
@@ -285,10 +285,13 @@ If you don't specify any command `slim` will start in the interactive prompt mod
 - `xray` - Performs static analysis for the target container image (including 'reverse engineering' the Dockerfile for the image). Use this command if you want to know what's inside of your container image and what makes it fat.
 - `lint` - Analyzes container instructions in Dockerfiles (Docker image support is WIP)
 - `build` - Analyzes, profiles and optimizes your container image generating the supported security profiles. This is the most popular command.
+- `debug` - Debug the running target container. This command is useful for troubleshooting running containers created from minimal/minified or regular container images.
 - `registry` - Execute registry operations.
 - `profile` - Performs basic container image analysis and dynamic container analysis, but it doesn't generate an optimized image.
 - `run` - Runs one or more containers (for now runs a single container similar to `docker run`)
+- `merge` - Merge two container images (optimized to merge minified images).
 - `version` - Shows the version information.
+- `appbom` - Shows the application BOM (app composition/dependencies).
 - `update` - Updates Slim to the latest version.
 - `help` - Show the available commands and global flags
 
@@ -307,8 +310,11 @@ Commands:
 - `xray` - Show what's in the container image and reverse engineer its Dockerfile
 - `lint` - Lint the target Dockerfile (or image, in the future)
 - `build` - Analyze the target container image along with its application and build an optimized image from it
+- `debug` - Debug the running target container. This command is useful for troubleshooting running containers created from minimal/minified or regular container images.
 - `registry` - Execute registry operations.
 - `profile` - Collect fat image information and generate a fat container report
+- `merge` - Merge two container images (optimized to merge minified images)
+- `appbom` - Shows the application BOM (app composition/dependencies)
 - `version` - Show app and docker version information
 - `update` - Update the app
 - `help` - Show help info
@@ -458,6 +464,7 @@ In the interactive CLI prompt mode you must specify the target image using the `
 - `--include-exe value` - Include executable from image (by executable name)
 - `--include-exe-file` - Load executable file includes from a file (similar to `--include-path-file`)
 - `--include-shell` - Include basic shell functionality (default value: false)
+- `--include-workdir` - Keep files in working directory (default value: false)
 - `--include-cert-all` - Keep all discovered cert files (default: true)
 - `--include-cert-bundles-only` - Keep only cert bundles
 - `--include-cert-dirs` - Keep known cert directories and all files in them
@@ -529,6 +536,10 @@ In the interactive CLI prompt mode you must specify the target image using the `
 - `--sensor-ipc-endpoint` - Override sensor IPC endpoint
 - `--rta-onbuild-base-image` - Enable runtime analysis for onbuild base images (default: false)
 - `--rta-source-ptrace` - Enable PTRACE runtime analysis source (default: true)
+- `--image-build-engine` - Select image build engine: `internal` | `docker` | `none` (`internal` - build the output image without using Docker [default behavior], `docker` - build the output image with Docker, `none` - don't build the output image, allows you to do your own build with the tools you want to use, which you'll be able to do by pointing to the artifact directory where the `files.tar` and `Dockerfile` artifacts are located for the output image)
+- `--image-build-arch` - Select output image build architecture (use the standard container image names for the architectures without the OS part)
+- `--obfuscate-metadata` - Obfuscate the standard system and application metadata to make it more challenging to identify the image components (experimental flag, first version of obfuscation; inspired by the [`Malicious Compliance`](https://kccnceu2023.sched.com/event/1Hybu/malicious-compliance-reflections-on-trusting-container-scanners-ian-coldwater-independent-duffie-cooley-isovalent-brad-geesaman-ghost-security-rory-mccune-datadog) KubeCon EU 2023 talk)
+
 
 In the interactive CLI prompt mode you must specify the target image using the `--target` flag while in the traditional CLI mode you can use the `--target` flag or you can specify the target image as the last value in the command.
 
@@ -543,6 +554,41 @@ The `--include-shell` option provides a simple way to keep a basic shell in the 
 The `--dockerfile` option makes it possible to build a new minified image directly from source Dockerfile. Pass the Dockerfile name as the value for this flag and pass the build context directory or URL instead of the docker image name as the last parameter for the `build` command: `slim build --dockerfile Dockerfile --tag my/custom_minified_image_name .` If you want to see the console output from the build stages (when the fat and slim images are built) add the `--show-blogs` build flag. Note that the build console output is not interactive and it's printed only after the corresponding build step is done. The fat image created during the build process has the `.fat` suffix in its name. If you specify a custom image tag (with the `--tag` flag) the `.fat` suffix is added to the name part of the tag. If you don't provide a custom tag the generated fat image name will have the following format: `slim-tmp-fat-image.<pid_of_slim>.<current_timestamp>`. The minified image name will have the `.slim` suffix added to that auto-generated container image name (`slim-tmp-fat-image.<pid_of_slim>.<current_timestamp>.slim`). Take a look at this [python examples](https://github.com/slimtoolkit/examples/tree/master/python_ubuntu_18_py27_from_dockerfile) to see how it's using the `--dockerfile` flag.
 
 The `--use-local-mounts` option is used to choose how the Slim sensor is added to the target container and how the sensor artifacts are delivered back to the master. If you enable this option you'll get the original Slim app behavior where it uses local file system volume mounts to add the sensor executable and to extract the artifacts from the target container. This option doesn't always work as expected in the dockerized environment where Slim itself is running in a Docker container. When this option is disabled (default behavior) then a separate Docker volume is used to mount the sensor and the sensor artifacts are explicitly copied from the target container.
+
+### `DEBUG` COMMAND OPTIONS
+
+- `--runtime` - Runtime environment type (values: `docker`, `k8s`; defaults to `docker`)
+- `--debug-image` - Debug image to use for the debug side-car container (default value for this flag is `busybox`).
+- `--list-debug-images` - List possible debug images to use for the debug side-car container (for the `--debug-image` flag). This list is a ready to use set of debug images. You can use other images too.
+- `--target` - Target container name or ID (this can also be provided as the last param in the command line invocation of the `debug` command). Note that the target container must be running. You can use the `docker run` command to start the target container (or the kubernetes equivalent).
+- `--namespace` - Namespace to target [k8s runtime] (defaults to `default`)
+- `--pod` - Pod to target [k8s runtime]
+- `--cmd` - (Optional) custom CMD to use for the debug side-car container (alternatively pass custom CMD params after '--').
+- `--entrypoint` - (Optional) custom ENTRYPOINT to use for the debug side-car container.
+- `--terminal` - Attach interactive terminal to the debug container (default: true). When the interactive terminal is not enabled the debug container output will be printed out to the screen when the `debug` command exits.
+- `--kubeconfig` - Kubeconfig file location [k8s runtime]
+- `--workdir` - Custom WORKDIR to use for the debug side-car container.
+- `--env` - Environment variable to add to the debug side-car container.
+- `--run-as-target-shell` - Attach interactive terminal to the debug container and run shell as if it's running in the target container environment.
+- `--list-sessions` - List all debug sessions for the selected target (pod and optionally selected container for k8s or container for other runtimes).
+- `--show-session-logs` - Show logs for the selected debug session (using namespace, pod, target container or debug session container name for k8s or debug session container name for other runtimes).
+- `--session` - Debug session container name (used for debug sessoin actions).
+- `--connect-session` - Connect to existing debug session.
+- `--list-namespaces` - List names for available namespaces (use this flag by itself) [k8s runtime].
+- `--list-pods` - List names for running pods in the selected namespace (use this flag by itself) [k8s runtime].
+- `--list-debuggable-containers` - List container names for active containers that can be debugged (use this flag by itself).
+- `--list-debug-images` - List possible debug images to use for the debug side-car container (use this flag by itself).
+- `--help` show help (default: false)
+
+See the "Debugging Using the `debug` Command" section for more information about this command.
+
+### `MERGE` COMMAND OPTIONS
+
+- `--image` - Image to merge. Flag instance position determines the merge order. The command supports two instances of this flag.
+
+- `--use-last-image-metadata` - Use only the last image metadata for the merged image.
+
+- `--tag` - Custom tags for the output image (multiple instances).
 
 ### `REGISTRY` COMMAND OPTIONS
 
@@ -585,15 +631,170 @@ docker cp $DOCKER_CERT_PATH/. dcert:/dcert_path
 docker run --volumes-from dcert -e DOCKER_HOST=$DOCKER_HOST -e DOCKER_TLS_VERIFY=$DOCKER_TLS_VERIFY -e DOCKER_CERT_PATH=/dcert_path dslim/slim build your-docker-image-name
 ```
 
+Different CI/CD services have different containerized environment designs that impose various restrictions that may impact the ability of the main app to communicate with the sensor app embedded in the temporary container Slim creates. Try adjusting the values for the `--sensor-ipc-mode` and `--sensor-ipc-endpoint` flags. This [`Google Cloud Build`](https://medium.com/google-cloud/integrating-dockerslim-container-minify-step-on-cloud-build-64da29fd58d1) blog post by Márton Kodok is a good reference for both of those flags. 
+
+### Using `*-file` Flags
+- There are several flags that accept file paths (`--include-path-file`, `--compose-file`, `--http-probe-cmd-file`, etc). You need volume mount the location of the referenced paths or the file paths themselves when you use the containerized version of Slim because the Slim app container won't have accept to the referenced files otherwise.
+
+## CI/CD INTEGRATIONS
+
+### Integrating Slim in Jenkins
+#### Prerequisites:
+- Spin up a virtual machine(e.g.EC2 Instance, Azure VM, GCE) which has an Ubuntu OS via your desired cloud platform(AWS, Azure, GCP), SSH into the machine, update the machine packages and install docker. An example of this step is highlighted below given you are running an AWS EC2 Instance.
+```
+sudo apt update -y
+```
+```
+sudo apt install docker -y
+```
+```
+sudo systemctl start docker
+```
+```
+sudo usermod -aG docker ec2-user
+```
+- Install Jenkins on the virtual machine using docker as stipulated by the [Jenkins Documentation](https://github.com/jenkinsci/docker/blob/master/README.md), this step pulls [Jenkins Image from DockerHub](https://hub.docker.com/r/jenkins/jenkins), runs Jenkins as a container via port 8080 and creates an explicit docker volume on the host machine to retain Jenkins data. Given you are running an AWS EC2 Instance, create a TCP rule with port 8080 in the Instance security group rules which allows only your Internet Protocol(IP) address to access the Jenkins server. 
+```
+docker run -p 8080:8080 -p 50000:50000 -d -v jenkins_home:/var/jenkins_home jenkins/jenkins:lts
+```
+- Given Jenkins is now running as a containerized environment in the virtual machine, you need to make docker available in the Jenkins container, you can do this by bind mounting the virtual machine docker unix socket onto the jenkins container, note that to carry out this step you need to stop the running jenkins container, you can find the jenkins container ID by using the docker ps command, the commands to execute are highlighted below. This step is essential as it makes docker available in the Jenkins container, and with docker you can pull Slim Image which is to be used in furthur steps.
+```
+docker ps 
+```
+```
+docker stop [jenkins_container_id]
+```
+```
+docker run -p 8080:8080 -p 50000:50000 -d \  
+-v jenkins_home:/var/jenkins_home \ 
+-v /var/run/docker.sock:/var/run/docker.sock \ 
+-v $(which docker):/usr/bin/docker jenkins/jenkins:lts
+```
+- Enable Docker permissions in the new jenkins container, such that Jenkins can perform docker commands and pull the [Slim Official Image](https://hub.docker.com/r/dslim/docker-slim) in the container. To do this, you need to get into the Jenkins container as a root user, you can find the jenkins container ID by using the docker ps command, the commands to execute are highlighted below:
+```
+docker exec -u 0 -it [jenkins_container_id] bash
+```
+```
+chmod 666 /var/run/docker.sock 
+```
+```
+docker pull dslim/slim
+```
+#### Jenkinsfile Slim Stage
+Given you have completed the prerequisite steps above, you can build a docker image and minify the image size using Slim via the snippet stage below which should be highlighted in your Jenkinsfile stages.
+```
+stage("Build and Slim Docker Image") {
+  steps {
+      script {
+          echo "building and slimming docker image..."
+          sh 'docker build -t IMAGE_NAME:$BUILD_NUMBER .'
+          sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock dslim/slim \
+              build --target IMAGE_NAME:$BUILD_NUMBER --tag IMAGE_NAME:slim-$BUILD_NUMBER \
+              exit'
+      }
+  }
+}
+```
+- The snippet stage above allows for customization, you should replace the image name--IMAGE_NAME with your desired image name, the environment variable tag--$BUILD_NUMBER represents a unique incremental number allocated by Jenkins each time your jenkins pipeline runs. 
+- The docker build command builds a Docker Image of your application from a Dockerfile.
+- The docker run command runs Slim in a non-interactive mode via the docker unix socket, minifies the built(target) image--IMAGE_NAME:$BUILD_NUMBER, and adjusting it to a new slimmed image with the image/tag--IMAGE_NAME:slim-$BUILD_NUMBER.
+- You should put the Slim stage before a docker tag/push stage and after a build/test artifact in your Jenkinsfile, an example pipeline is highlighted below for a sample nodejs application; The first stage test and builds an artifact of the application; The second stage builds a docker image and a slimmed version of the docker image; The third stage tags the slimmed docker image with a DockerHub account remote repository and pushes the image to the remote repository.
+```
+pipeline {
+    agent any
+    stages {
+        stage("building nodejs app") {
+            steps{
+                script {
+                    echo "building nodejs app..."
+                    sh 'npm run test'
+                    sh 'npm pack'
+                }
+            }
+        }
+        stage("Build and Slim Docker Image") {
+            steps {
+                script {
+                    echo "building and slimming docker image..."
+                    sh 'docker build -t node_alpine:$BUILD_NUMBER .'
+                    sh 'docker run --rm -v /var/run/docker.sock:/var/run/docker.sock dslim/slim \
+                        build --target node_alpine:$BUILD_NUMBER --tag node_alpine:slim-$BUILD_NUMBER \
+                        exit'
+                }
+            }
+        }
+        stage("Push Slim Image to Regristy") {
+            steps {
+                script {
+                    echo 'pushing image to docker regristry...'
+                    withCredentials([usernamePassword(credentialsId: 'docker-hub-credentials', passwordVariable: 'PASS', usernameVariable: 'USER')]) {
+                        sh 'docker tag node_alpine:slim-$BUILD_NUMBER $USER/node_alpine:slim-$BUILD_NUMBER'
+                        sh 'echo $PASS | docker login -u $USER --password-stdin'
+                        sh 'docker push $USER/node_alpine:slim-$BUILD_NUMBER'
+                    }
+                }
+            }
+        }
+    }
+}   
+```
+
+### Integrating Slim in Github Actions
+#### Docker-Slim Github Action
+Integrating Slim in Github Actions in your CI/CD workflow involves using the [Docker-Slim Github Action](https://github.com/marketplace/actions/docker-slim-github-action), this Action(snippet below) minifies a target docker image--IMAGE_NAME:latest in your workflow, making it smaller and adjusting the new slimmed image as IMAGE_NAME:slim.  
+```
+# Slim it!
+- uses: kitabisa/docker-slim-action@v1
+  env:
+    DSLIM_HTTP_PROBE: false
+  with:
+    target: IMAGE_NAME:latest
+    tag: "slim"
+```
+#### Github Actions Slim Workflow
+You can integrate the Docker-Slim Github Action in your workflow by inserting the Action after a [Docker Build/Push Github Action](https://github.com/docker/build-push-action), before [Docker Login Github Action](https://github.com/docker/login-action) and docker tag/push commands, a customized example workflow is highlighted below. Note that the environment variable tag--{{github.run_number}} in the workflow represents a unique incremental number allocated by Github Actions each time your workflow runs.
+```
+# Build the Docker image first
+- uses: docker/build-push-action@v4
+  with:
+    push: false
+    tags: IMAGE_NAME:{{github.run_number}} 
+
+# Slim the Image
+- uses: kitabisa/docker-slim-action@v1
+  env:
+    DSLIM_HTTP_PROBE: false
+  with:
+    target: IMAGE_NAME:{{github.run_number}}
+    tag: "slim-{{github.run_number}}"
+
+# Docker Hub Login
+  uses: docker/login-action@v2
+  with:
+    username: ${{ secrets.DOCKERHUB_USERNAME }}
+    password: ${{ secrets.DOCKERHUB_TOKEN }}
+
+# Push to the registry
+- run: | 
+   docker tag IMAGE_NAME:slim-{{github.run_number}} ${{ secrets.DOCKERHUB_USERNAME }}/IMAGE_NAME:slim-{{github.run_number}}
+   docker push ${{ secrets.DOCKERHUB_USERNAME }}/IMAGE_NAME:slim-{{github.run_number}}
+```
+The workflow above indicates four steps:
+- A [Docker Build/Push Github Action](https://github.com/docker/build-push-action) for building a docker image with the image name/tag--IMAGE_NAME:{{github.run_number}}, you should give replace IMAGE_NAME with your desired image name. Note that this Action must have a false option to push the built image--given that you need the image slimmed/minified before pushing it to a container registry. 
+- A Docker-Slim Github Action which minifies the target image--IMAGE_NAME:{{github.run_number}}, this Action has the "slim-{{github.run_number}}" tag and adds this tag to the slimmed/minified docker image such that the image name/tag becomes IMAGE_NAME:slim-{{github.run_number}}.
+- A Docker Login Github Action which logs into your DockerHub container regristry account, you should store your DockerHub username and personal access token as secrets in the github repository meant for the workflow. Suppose your container registry is not DockerHub, you can check the [Docker Login Github Action documentation](https://github.com/docker/login-action) for the use case of logging into your desired container registry. 
+- A docker tag command for naming/tagging the slimmed image with your DockerHub account remote repository name which could be the same name(IMAGE_NAME) as the slimmed image; A docker push command to push the slimmed image to your Dockerhub account remote repository.
+
+
 ## DOCKER CONNECT OPTIONS
 
-If you don't specify any Docker connect options the Slim app expects to find the following environment variables: `DOCKER_HOST`, `DOCKER_TLS_VERIFY` (optional), `DOCKER_CERT_PATH` (required if `DOCKER_TLS_VERIFY` is set to `"1"`)
+If you don't specify any Docker connect options the Slim app expects to find the Docker Unix socket (`/var/run/docker.sock`) or the following environment variables: `DOCKER_HOST`, `DOCKER_TLS_VERIFY` (optional), `DOCKER_CERT_PATH` (required if `DOCKER_TLS_VERIFY` is set to `"1"`). Note that the `DOCKER_HOST` environment variable can be used to point to a Unix socket address (in case the default Unix socket isn't there). This is useful when you use Docker Desktop and you haven't configured Docker Desktop to create the default Unix socket.
 
 If the Docker environment variables are configured to use TLS and to verify the Docker cert (default behavior), but you want to disable the TLS verification you can override the TLS verification behavior by setting the `--tls-verify` to false:
 
 `slim --tls-verify=false build my/sample-node-app-multi`
 
-You can override all Docker connection options using these flags: `--host`, `--tls`, `--tls-verify`, `--tls-cert-path`. These flags correspond to the standard Docker options (and the environment variables).
+You can override all Docker connection options using these flags: `--host`, `--tls`, `--tls-verify`, `--tls-cert-path`. These flags correspond to the standard Docker options (and the environment variables). Note that you can also use the `--host` flag (similar to `DOCKER_HOST`) to point to a Unix socket (e.g., `--host=unix:///var/run/docker.sock`).
 
 If you want to use TLS with verification:
 
@@ -604,6 +805,14 @@ If you want to use TLS without verification:
 `slim --host=tcp://192.168.99.100:2376 --tls-cert-path=/Users/youruser/.docker/machine/machines/default --tls=true --tls-verify=false build my/sample-node-app-multi`
 
 If the Docker environment variables are not set and if you don't specify any Docker connect options Slim will try to use the default unix socket.
+
+### DOCKER DESKTOP
+
+You may not have the default Unix socket (`/var/run/docker.sock`) configured if you use Docker Desktop. By default, Docker Desktop uses `~/.docker/run/docker.sock` as the Unix socket.
+
+You can either use `--host` or `DOCKER_HOST` to point to the Docker Desktop's Unix socket or you can configure Docker Desktop to create the default/traditional Unix socket (creating the `/var/run/docker.sock` symlink manually is an option too).
+
+To configure Docker Desktop to create the default Unix socket open its UI and go to `Settings -> Advanced` where you need to check the `Enable default Docker socket (Requires password)` option.
 
 ## HTTP PROBE COMMANDS
 
@@ -704,6 +913,93 @@ You can use the `--http-probe-exec` and `--http-probe-exec-file` options to run 
 
 ## DEBUGGING MINIFIED CONTAINERS
 
+### Debugging Using the `debug` Command
+
+The current version of the `debug` command is pretty basic and it lacks a number of useful capabilities. It will help you debug containers running in Docker or Kubernetes (use the `--runtime` flag and set it to `k8s` if you need to debug a container in Kubernetes). 
+
+By default the `debug` command will provide you with an interactive terminal when it attaches the debugger side-car image to the debugged target container. Future versions will allow you to have different interaction modes with the target.
+
+#### The Debug Images
+
+You can use any container image as a debug image, but there's a list of pre-selected debug images you can choose.
+
+You can list all pre-selected debug images with the `--list-debug-images` and if you are using the interactive prompt mode there'll be an auto-complete dropdown menu for the `--debug-image` flag.
+
+Here's the current list of debug images:
+
+* `cgr.dev/chainguard/slim-toolkit-debug:latest` - a general purpose SlimToolkit debug image created by Chainguard
+* `cgr.dev/chainguard/wolfi-base:latest` - a basic lightweight Wolfi image
+* `busybox:latest` - a lightweight image with common unix utilities
+* `nicolaka/netshoot` - a network trouble-shooting swiss-army container
+* `lightruncom/koolkits:node` - a debug image for Node.js applications
+* `lightruncom/koolkits:python` - a debug image for Python applications
+* `lightruncom/koolkits:golang` - a debug image for Go applications
+* `lightruncom/koolkits:jvm` - a debug image for Java applications
+* `digitalocean/doks-debug:latest` - a kubernetes troubleshooting debug image
+* `public.ecr.aws/zinclabs/debug-ubuntu-base:latest` - an image with common debugging utilities 
+
+#### Steps to Debug Your Container (Kubernetes Runtime)
+
+1. Make sure the target environment you want to debug is up (the example k8s manifest creates a pod with the minimal nginx image from Chainguard and it has no shell):
+```bash
+
+>> kubectl apply -f examples/k8s_nginx_cgr/manifest.yaml
+
+```
+2. Run the debug command:
+
+```bash
+
+>> slim debug --runtime=k8s --pod=example-pod example-container
+
+```
+or
+```bash
+
+>> slim debug --runtime=k8s --pod=example-pod --target=example-container
+
+```
+
+Now you should have an interactive shell into the debug container started by `slim` and you can type your regular shell commands.
+
+By default the `debug` command will connect the interactive terminal to the debugged container and it will run a shell as if it's running in the target container environment, so you will see the file system of the target container as if you are directly connected (you won't have to go through the `proc` file system). You can change this behavior by using the `--run-as-target-shell` (which is true by default). For example, this call will connect you to the debug container in a more traditional way: `slim debug --runtime=k8s --run-as-target-shell=false example-container`
+
+Also note that if you use the interactive `prompt` mode (when you run `slim` with no command line parameters) you will get auto-complete behavior for a number of flags: `--target`, `--namespace`, `--pod`, `--session`.
+
+Each time you try to debug an image `slim` will have a session that represents it. You'll be able to reconnect to the existing active debug sessions and you'll be able to get logs from all available sessions.
+
+#### Steps to Debug Your Container (Docker Runtime) 
+
+1. Start the target container you want to debug:
+```bash
+
+>> docker run -it --rm -p 80:80 --name mycontainer nginx
+
+```
+2. Run the debug command:
+
+```bash
+
+>> slim debug mycontainer
+
+```
+or
+```bash
+
+>> slim debug --target=mycontainer
+
+```
+
+Now you should have an interactive shell into the debug container started by `slim` and you can type your regular shell commands.
+
+By default the `debug` command will connect the interactive terminal to the debugged container and it will run a shell as if it's running in the target container environment, so you will see the file system of the target container as if you are directly connected (you won't have to go through the `proc` file system). You can change this behavior by using the `--run-as-target-shell` (which is true by default). For example, this call will connect you to the debug container in a more traditional way: `slim debug --run-as-target-shell=false mycontainer`
+
+Also note that if you use the interactive `prompt` mode (when you run `slim` with no command line parameters) you will get auto-complete behavior for a number of flags: `--target`, `--session`.
+
+Each time you try to debug an image `slim` will have a session that represents it. You'll be able to reconnect to the existing active debug sessions and you'll be able to get logs from all available sessions.
+
+### Debugging the "Hard Way" (Docker Runtime)
+
 You can create dedicated debugging side-car container images loaded with the tools you need for debugging target containers. This allows you to keep your production container images small. The debugging side-car containers attach to the running target containers.
 
 Assuming you have a running container named `node_app_alpine` you can attach your debugging side-car with a command like this: `docker run --rm -it --pid=container:node_app_alpine --net=container:node_app_alpine --cap-add sys_admin alpine sh`. In this example, the debugging side-car is a regular alpine image. This is exactly what happens with the `node_alpine` app sample (located in the `node_alpine` directory of the `examples` repo) and the `run_debug_sidecar.command` helper script.
@@ -728,6 +1024,7 @@ drwxr-xr-x    3 root     root        4.0K Sep  2 15:51 node_modules
 ```
 
 Some of the useful debugging commands include `cat /proc/<TARGET_PID>/cmdline`, `ls -l /proc/<TARGET_PID>/cwd`, `cat /proc/1/environ`, `cat /proc/<TARGET_PID>/limits`, `cat /proc/<TARGET_PID>/status` and `ls -l /proc/<TARGET_PID>/fd`.
+
 
 ## MINIFYING COMMAND LINE TOOLS
 
@@ -781,11 +1078,11 @@ The demo runs on Mac OS X, but you can build a linux version. Note that these st
 
 1. Get the Slim app binaries:
 
-* [Mac](https://downloads.dockerslim.com/releases/1.40.0/dist_mac.zip),
-* [Mac M1](https://downloads.dockerslim.com/releases/1.40.0/dist_mac_m1.zip), 
-* [Linux](https://downloads.dockerslim.com/releases/1.40.0/dist_linux.tar.gz), 
-* [Linux ARM](https://downloads.dockerslim.com/releases/1.40.0/dist_linux_arm.tar.gz),
-* [Linux ARM64](https://downloads.dockerslim.com/releases/1.40.0/dist_linux_arm64.tar.gz) 
+* [Mac](https://downloads.dockerslim.com/releases/1.40.4/dist_mac.zip),
+* [Mac M1](https://downloads.dockerslim.com/releases/1.40.4/dist_mac_m1.zip), 
+* [Linux](https://downloads.dockerslim.com/releases/1.40.4/dist_linux.tar.gz), 
+* [Linux ARM](https://downloads.dockerslim.com/releases/1.40.4/dist_linux_arm.tar.gz),
+* [Linux ARM64](https://downloads.dockerslim.com/releases/1.40.4/dist_linux_arm64.tar.gz) 
 
 Unzip them and optionally add their directory to your `PATH` environment variable if you want to use the app from other locations.
 
@@ -952,7 +1249,7 @@ Notes:
 
 ## CONTRIBUTING
 
-If the project sounds interesting or if you found a bug see [`CONTRIBUTING.md`](https://github.com/slimtoolkit/slim/blob/master/CONTRIBUTING.md) and submit a PR!
+If the project sounds interesting or if you found a bug see [`CONTRIBUTING.md`](CONTRIBUTING.md) and submit a PR or open an issue! Non-code contributions including docs are highly appreciated! Open an issue even if you have a question or something is not clear.
 
 ## DESIGN
 
@@ -984,19 +1281,6 @@ The goal is to auto-generate Seccomp, AppArmor, (and potentially SELinux) profil
 
 Some of the advanced analysis options require a number of Linux kernel features that are not always included. The kernel you get with Docker Machine / Boot2docker is a great example of that.
 
-## DEVELOPMENT PROGRESS
-
-### TODO
-
-- AppArmor profile improvements
-- Better support for command line applications (e.g., ability to specify multiple executions)
-- Discover HTTP endpoints to make the HTTP probe more intelligent.
-- Scripting language dependency discovery in the "scanner" app.
-- Explore additional dependency discovery methods.
-- "Live" image create mode - to create new images from containers where users install their applications interactively.
-
-The [`WISHLIST`](WISHLIST.md) doc includes even more potential improvements.
-
 ## ORIGINS
 
 DockerSlim was a `Docker Global Hack Day` \#`dockerhackday` project. It barely worked at the time, but it did get a win in Seattle and it took the second place in the `Plumbing` category overall :-)
@@ -1005,14 +1289,21 @@ DockerSlim was a `Docker Global Hack Day` \#`dockerhackday` project. It barely w
 
 Since then it's been improved and it works pretty well for its core use cases. It can be better though. That's why the project needs your help! You don't need to know much about the container internals, container runtimes and you don't need to know anything about Go. You can contribute in many different ways. For example, use Slim on your images and open Github issues documenting your experience even if it worked just fine :-)
 
-## MINIFIED IMAGES ON DOCKER HUB
-
-- [`container-transform`](https://hub.docker.com/r/dslim/container-transform.slim/)
-
 ## LICENSE
 
 Apache License v2, see [LICENSE](https://github.com/slimtoolkit/slim/blob/master/LICENSE) for details.
 
+## CODE OF CONDUCT
+
+The project follows the [CNCF Code of Conduct](https://github.com/cncf/foundation/blob/main/code-of-conduct.md).
+
+---
+
+**We are a [Cloud Native Computing Foundation](https://cncf.io/) sandbox project.**
+
+<img src="assets/images/cncf/cncf.svg" width=300 />
+
 ---
 
 [![Go Report Card](https://goreportcard.com/badge/github.com/slimtoolkit/slim)](https://goreportcard.com/report/github.com/slimtoolkit/slim)
+

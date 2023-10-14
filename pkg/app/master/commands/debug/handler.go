@@ -1,17 +1,15 @@
 package debug
 
 import (
-	"fmt"
-
 	"github.com/docker-slim/docker-slim/pkg/app"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands"
-	"github.com/docker-slim/docker-slim/pkg/app/master/container"
-	"github.com/docker-slim/docker-slim/pkg/app/master/docker/dockerclient"
-	"github.com/docker-slim/docker-slim/pkg/app/master/inspectors/image"
+	//"github.com/docker-slim/docker-slim/pkg/app/master/container"
+	//"github.com/docker-slim/docker-slim/pkg/app/master/inspectors/image"
 	"github.com/docker-slim/docker-slim/pkg/app/master/version"
 	"github.com/docker-slim/docker-slim/pkg/command"
+	"github.com/docker-slim/docker-slim/pkg/docker/dockerclient"
 	"github.com/docker-slim/docker-slim/pkg/report"
-	"github.com/docker-slim/docker-slim/pkg/util/errutil"
+	//"github.com/docker-slim/docker-slim/pkg/util/errutil"
 	"github.com/docker-slim/docker-slim/pkg/util/fsutil"
 	v "github.com/docker-slim/docker-slim/pkg/version"
 
@@ -35,82 +33,73 @@ func OnCommand(
 	cmdReport.State = command.StateStarted
 
 	xc.Out.State("started")
-	xc.Out.Info("params",
-		ovars{
-			"target":          commandParams.TargetRef,
-			"debug-image":     commandParams.DebugContainerImage,
-			"debug-image-cmd": commandParams.DebugContainerImageCmd,
-			"attach-tty":      commandParams.AttachTty,
+	paramVars := ovars{
+		"runtime":     commandParams.Runtime,
+		"target":      commandParams.TargetRef,
+		"debug-image": commandParams.DebugContainerImage,
+		"entrypoint":  commandParams.Entrypoint,
+		"cmd":         commandParams.Cmd,
+		"terminal":    commandParams.DoTerminal,
+	}
+
+	if commandParams.Runtime == KubernetesRuntime {
+		paramVars["namespace"] = commandParams.TargetNamespace
+		paramVars["pod"] = commandParams.TargetPod
+	}
+
+	xc.Out.Info("params", paramVars)
+
+	sid := generateSessionID()
+	debugContainerName := generateContainerName(sid)
+	logger = logger.WithFields(
+		log.Fields{
+			"sid":                  sid,
+			"debug.container.name": debugContainerName,
 		})
 
-	client, err := dockerclient.New(gparams.ClientConfig)
-	if err == dockerclient.ErrNoDockerInfo {
-		exitMsg := "missing Docker connection info"
-		if gparams.InContainer && gparams.IsDSImage {
-			exitMsg = "make sure to pass the Docker connect parameters to the slim app container"
+	switch commandParams.Runtime {
+	case DockerRuntime:
+		client, err := dockerclient.New(gparams.ClientConfig)
+		if err == dockerclient.ErrNoDockerInfo {
+			exitMsg := "missing Docker connection info"
+			if gparams.InContainer && gparams.IsDSImage {
+				exitMsg = "make sure to pass the Docker connect parameters to the slim app container"
+			}
+
+			xc.Out.Info("docker.connect.error",
+				ovars{
+					"message": exitMsg,
+				})
+
+			exitCode := commands.ECTCommon | commands.ECCNoDockerConnectInfo
+			xc.Out.State("exited",
+				ovars{
+					"exit.code": exitCode,
+					"version":   v.Current(),
+					"location":  fsutil.ExeDir(),
+				})
+			xc.Exit(exitCode)
+		}
+		xc.FailOn(err)
+
+		if gparams.Debug {
+			version.Print(xc, Name, logger, client, false, gparams.InContainer, gparams.IsDSImage)
 		}
 
-		xc.Out.Info("docker.connect.error",
-			ovars{
-				"message": exitMsg,
-			})
+		HandleDockerRuntime(logger, xc, gparams, commandParams, client, sid, debugContainerName)
+	case KubernetesRuntime:
+		if gparams.Debug {
+			version.Print(xc, Name, logger, nil, false, gparams.InContainer, gparams.IsDSImage)
+		}
 
-		exitCode := commands.ECTCommon | commands.ECNoDockerConnectInfo
+		HandleKubernetesRuntime(logger, xc, gparams, commandParams, sid, debugContainerName)
+	default:
+		xc.Out.Error("runtime", "unsupported runtime")
 		xc.Out.State("exited",
 			ovars{
-				"exit.code": exitCode,
-				"version":   v.Current(),
-				"location":  fsutil.ExeDir(),
+				"exit.code": -1,
 			})
-		xc.Exit(exitCode)
-	}
-	errutil.FailOn(err)
-
-	if gparams.Debug {
-		version.Print(xc, Name, logger, client, false, gparams.InContainer, gparams.IsDSImage)
-	}
-
-	imageInspector, err := image.NewInspector(client, commandParams.DebugContainerImage)
-	options := container.ExecutionOptions{
-		Cmd:      commandParams.DebugContainerImageCmd,
-		Terminal: commandParams.AttachTty,
-	}
-	if imageInspector.NoImage() {
-		err := imageInspector.Pull(true, "", "", "")
-		errutil.FailOn(err)
-	}
-
-	exe, err := container.NewExecution(
-		xc,
-		logger,
-		client,
-		commandParams.DebugContainerImage,
-		&options,
-		nil,
-		true,
-		true)
-
-	// attach network, IPC & PIDs, essentially this is run --network container:golang_service --pid container:golang_service --ipc container:golang_service
-	mode := fmt.Sprintf("container:%s", commandParams.TargetRef)
-	exe.IpcMode = mode
-	exe.NetworkMode = mode
-	exe.PidMode = mode
-
-	errutil.FailOn(err)
-
-	err = exe.Start()
-	errutil.FailOn(err)
-
-	_, err = exe.Wait()
-	errutil.FailOn(err)
-
-	defer func() {
-		err = exe.Cleanup()
-		errutil.WarnOn(err)
-	}()
-
-	if !commandParams.AttachTty {
-		exe.ShowContainerLogs()
+		xc.Exit(-1)
 	}
 
 	xc.Out.State("completed")

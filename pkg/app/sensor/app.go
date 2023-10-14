@@ -4,9 +4,12 @@
 package sensor
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -14,11 +17,12 @@ import (
 	log "github.com/sirupsen/logrus"
 
 	"github.com/docker-slim/docker-slim/pkg/app"
-	"github.com/docker-slim/docker-slim/pkg/app/sensor/artifacts"
+	"github.com/docker-slim/docker-slim/pkg/app/sensor/artifact"
 	"github.com/docker-slim/docker-slim/pkg/app/sensor/controlled"
 	"github.com/docker-slim/docker-slim/pkg/app/sensor/execution"
-	"github.com/docker-slim/docker-slim/pkg/app/sensor/monitors"
+	"github.com/docker-slim/docker-slim/pkg/app/sensor/monitor"
 	"github.com/docker-slim/docker-slim/pkg/app/sensor/standalone"
+	"github.com/docker-slim/docker-slim/pkg/appbom"
 	"github.com/docker-slim/docker-slim/pkg/ipc/event"
 	"github.com/docker-slim/docker-slim/pkg/sysenv"
 	"github.com/docker-slim/docker-slim/pkg/system"
@@ -32,6 +36,10 @@ const (
 	sensorModeStandalone = "standalone"
 
 	// Flags
+
+	getAppBomFlagUsage   = "get sensor application BOM"
+	getAppBomFlagDefault = false
+
 	enableDebugFlagUsage   = "enable debug logging"
 	enableDebugFlagDefault = false
 
@@ -67,6 +75,7 @@ const (
 )
 
 var (
+	getAppBom            *bool          = flag.Bool("appbom", getAppBomFlagDefault, getAppBomFlagUsage)
 	enableDebug          *bool          = flag.Bool("debug", enableDebugFlagDefault, enableDebugFlagUsage)
 	logLevel             *string        = flag.String("log-level", logLevelFlagDefault, logLevelFlagUsage)
 	logFormat            *string        = flag.String("log-format", logFormatFlagDefault, logFormatFlagUsage)
@@ -82,6 +91,7 @@ var (
 )
 
 func init() {
+	flag.BoolVar(getAppBom, "b", getAppBomFlagDefault, getAppBomFlagUsage)
 	flag.BoolVar(enableDebug, "d", enableDebugFlagDefault, enableDebugFlagUsage)
 	flag.StringVar(logLevel, "l", logLevelFlagDefault, logLevelFlagUsage)
 	flag.StringVar(logFormat, "f", logFormatFlagDefault, logFormatFlagUsage)
@@ -94,22 +104,42 @@ func init() {
 	flag.DurationVar(stopGracePeriod, "w", stopGracePeriodFlagDefault, stopGracePeriodFlagUsage)
 }
 
+func dumpAppBom() {
+	info := appbom.Get()
+	if info == nil {
+		return
+	}
+
+	var out bytes.Buffer
+	encoder := json.NewEncoder(&out)
+	encoder.SetEscapeHTML(false)
+	encoder.SetIndent(" ", " ")
+	_ = encoder.Encode(info)
+	fmt.Printf("%s\n", out.String())
+}
+
 // Run starts the sensor app
 func Run() {
 	flag.Parse()
+
+	if *getAppBom {
+		dumpAppBom()
+		return
+	}
 
 	errutil.FailOn(configureLogger(*enableDebug, *logLevel, *logFormat, *logFile))
 
 	activeCaps, maxCaps, err := sysenv.Capabilities(0)
 	errutil.WarnOn(err)
 	log.Infof("sensor: ver=%v", version.Current())
-	log.Debugf("sensor: uid=%v euid=%v", os.Getuid(), os.Geteuid())
-	log.Debugf("sensor: privileged => %v", sysenv.IsPrivileged())
-	log.Debugf("sensor: active capabilities => %#v", activeCaps)
-	log.Debugf("sensor: max capabilities => %#v", maxCaps)
-	log.Debugf("sensor: sysinfo => %#v", system.GetSystemInfo())
-	log.Debugf("sensor: kernel flags => %#v", system.DefaultKernelFeatures.Raw)
 	log.Debugf("sensor: args => %#v", os.Args)
+
+	log.Tracef("sensor: uid=%v euid=%v", os.Getuid(), os.Geteuid())
+	log.Tracef("sensor: privileged => %v", sysenv.IsPrivileged())
+	log.Tracef("sensor: active capabilities => %#v", activeCaps)
+	log.Tracef("sensor: max capabilities => %#v", maxCaps)
+	log.Tracef("sensor: sysinfo => %#v", system.GetSystemInfo())
+	log.Tracef("sensor: kernel flags => %#v", system.DefaultKernelFeatures.Raw)
 
 	var artifactsExtra []string
 	if len(*commandsFile) > 0 {
@@ -118,7 +148,7 @@ func Run() {
 	if len(*logFile) > 0 {
 		artifactsExtra = append(artifactsExtra, *logFile)
 	}
-	artifactor := artifacts.NewArtifactor(*artifactsDir, artifactsExtra)
+	artifactor := artifact.NewProcessor(*artifactsDir, artifactsExtra)
 
 	ctx := context.Background()
 	exe, err := newExecution(
@@ -148,13 +178,25 @@ func Run() {
 
 	if err := sen.Run(); err != nil {
 		exe.PubEvent(event.Error, err.Error())
+		log.WithError(err).Error("sensor: run finished with error")
+		if errors.Is(err, monitor.ErrInsufficientPermissions) {
+			log.Info("sensor: Instrumented containers require root and ALL capabilities enabled. Example: `docker run --user root --cap-add ALL app:v1-instrumented`")
+		}
+		if errors.Is(err, monitor.ErrInsufficientPermissions) {
+		}
+	} else {
+		log.Info("sensor: run finished succesfully")
 	}
-
-	log.Info("sensor: done!")
 
 	exe.Close()
 	errutil.WarnOn(artifactor.Archive())
-	exe.HookSensorPreShutdown() // Not nice calling it after exec.Close() but should be safe...
+
+	// We have to "stop" the execution and dump the artifacts
+	// before calling the pre-shutdown hook (that may want to
+	// upload the artifacts somewhere).
+	// Not ideal calling it after exe.Close() but should be safe.
+	exe.HookSensorPreShutdown()
+	log.Info("sensor: exiting...")
 }
 
 func newExecution(
@@ -187,7 +229,7 @@ func newSensor(
 	ctx context.Context,
 	exe execution.Interface,
 	mode string,
-	artifactor artifacts.Artifactor,
+	artifactor artifact.Processor,
 ) (sensor, error) {
 	workDir, err := os.Getwd()
 	errutil.WarnOn(err)
@@ -210,7 +252,7 @@ func newSensor(
 		return controlled.NewSensor(
 			ctx,
 			exe,
-			monitors.NewCompositeMonitor,
+			monitor.NewCompositeMonitor,
 			artifactor,
 			workDir,
 			mountPoint,
@@ -219,7 +261,7 @@ func newSensor(
 		return standalone.NewSensor(
 			ctx,
 			exe,
-			monitors.NewCompositeMonitor,
+			monitor.NewCompositeMonitor,
 			artifactor,
 			workDir,
 			mountPoint,

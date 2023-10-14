@@ -114,6 +114,7 @@ type Inspector struct {
 	IncludeBins           map[string]*fsutil.AccessInfo
 	IncludeExes           map[string]*fsutil.AccessInfo
 	DoIncludeShell        bool
+	DoIncludeWorkdir      bool
 	DoIncludeCertAll      bool
 	DoIncludeCertBundles  bool
 	DoIncludeCertDirs     bool
@@ -128,6 +129,7 @@ type Inspector struct {
 	PrintState            bool
 	InContainer           bool
 	RTASourcePT           bool
+	DoObfuscateMetadata   bool
 	SensorIPCEndpoint     string
 	SensorIPCMode         string
 	TargetHost            string
@@ -188,6 +190,7 @@ func NewInspector(
 	includeBins map[string]*fsutil.AccessInfo,
 	includeExes map[string]*fsutil.AccessInfo,
 	doIncludeShell bool,
+	doIncludeWorkdir bool,
 	doIncludeCertAll bool,
 	doIncludeCertBundles bool,
 	doIncludeCertDirs bool,
@@ -202,6 +205,7 @@ func NewInspector(
 	logFormat string,
 	inContainer bool,
 	rtaSourcePT bool,
+	doObfuscateMetadata bool,
 	sensorIPCEndpoint string,
 	sensorIPCMode string,
 	printState bool,
@@ -239,6 +243,7 @@ func NewInspector(
 		IncludeBins:           includeBins,
 		IncludeExes:           includeExes,
 		DoIncludeShell:        doIncludeShell,
+		DoIncludeWorkdir:      doIncludeWorkdir,
 		DoIncludeCertAll:      doIncludeCertAll,
 		DoIncludeCertBundles:  doIncludeCertBundles,
 		DoIncludeCertDirs:     doIncludeCertDirs,
@@ -253,6 +258,7 @@ func NewInspector(
 		PrintState:            printState,
 		InContainer:           inContainer,
 		RTASourcePT:           rtaSourcePT,
+		DoObfuscateMetadata:   doObfuscateMetadata,
 		SensorIPCEndpoint:     sensorIPCEndpoint,
 		SensorIPCMode:         sensorIPCMode,
 		xc:                    xc,
@@ -307,6 +313,8 @@ func NewInspector(
 
 // RunContainer starts the container inspector instance execution
 func (i *Inspector) RunContainer() error {
+	logger := i.logger.WithField("op", "container.Inspector.RunContainer")
+
 	artifactsPath := filepath.Join(i.LocalVolumePath, ArtifactsDir)
 	sensorPath := sensor.EnsureLocalBinary(i.xc, i.logger, i.StatePath, i.PrintState)
 
@@ -327,7 +335,7 @@ func (i *Inspector) RunContainer() error {
 		for _, vb := range i.crOpts.HostConfig.Binds {
 			parts := strings.Split(vb, ":")
 			if len(parts) < 2 {
-				i.logger.Errorf("RunContainer: invalid bind format in crOpts.HostConfig.Binds => %s", vb)
+				logger.Errorf("invalid bind format in crOpts.HostConfig.Binds => %s", vb)
 				continue
 			}
 
@@ -544,17 +552,17 @@ func (i *Inspector) RunContainer() error {
 	if i.crOpts != nil {
 		if i.crOpts.Runtime != "" {
 			containerOptions.HostConfig.Runtime = i.crOpts.Runtime
-			i.logger.Debugf("RunContainer: using custom runtime => %s", containerOptions.HostConfig.Runtime)
+			logger.Debugf("using custom runtime => %s", containerOptions.HostConfig.Runtime)
 		}
 
 		if len(i.crOpts.SysctlParams) > 0 {
 			containerOptions.HostConfig.Sysctls = i.crOpts.SysctlParams
-			i.logger.Debugf("RunContainer: using sysctl params => %#v", containerOptions.HostConfig.Sysctls)
+			logger.Debugf("using sysctl params => %#v", containerOptions.HostConfig.Sysctls)
 		}
 
 		if i.crOpts.ShmSize > -1 {
 			containerOptions.HostConfig.ShmSize = i.crOpts.ShmSize
-			i.logger.Debugf("RunContainer: using shm-size params => %#v", containerOptions.HostConfig.ShmSize)
+			logger.Debugf("using shm-size params => %#v", containerOptions.HostConfig.ShmSize)
 		}
 	}
 
@@ -585,36 +593,36 @@ func (i *Inspector) RunContainer() error {
 		// Non-user defined networks are *probably* a mode, ex. "host".
 		if !containertypes.NetworkMode(i.Overrides.Network).IsUserDefined() {
 			containerOptions.HostConfig.NetworkMode = i.Overrides.Network
-			i.logger.Debugf("RunContainer: HostConfig.NetworkMode => %v", i.Overrides.Network)
+			logger.Debugf("HostConfig.NetworkMode => %v", i.Overrides.Network)
 		}
 
 		if containerOptions.NetworkingConfig.EndpointsConfig == nil {
 			containerOptions.NetworkingConfig.EndpointsConfig = map[string]*dockerapi.EndpointConfig{}
 		}
 		containerOptions.NetworkingConfig.EndpointsConfig[i.Overrides.Network] = &dockerapi.EndpointConfig{}
-		i.logger.Debugf("RunContainer: NetworkingConfig.EndpointsConfig => %v", i.Overrides.Network)
+		logger.Debugf("NetworkingConfig.EndpointsConfig => %v", i.Overrides.Network)
 	}
 
 	// adding this separately for better visibility...
 	if i.HasClassicLinks && len(i.Links) > 0 {
 		containerOptions.HostConfig.Links = i.Links
-		i.logger.Debugf("RunContainer: HostConfig.Links => %v", i.Links)
+		logger.Debugf("HostConfig.Links => %v", i.Links)
 	}
 
 	if len(i.EtcHostsMaps) > 0 {
 		containerOptions.HostConfig.ExtraHosts = i.EtcHostsMaps
-		i.logger.Debugf("RunContainer: HostConfig.ExtraHosts => %v", i.EtcHostsMaps)
+		logger.Debugf("HostConfig.ExtraHosts => %v", i.EtcHostsMaps)
 	}
 
 	if len(i.DNSServers) > 0 {
 		containerOptions.HostConfig.DNS = i.DNSServers //for newer versions of Docker
 		containerOptions.Config.DNS = i.DNSServers     //for older versions of Docker
-		i.logger.Debugf("RunContainer: HostConfig.DNS/Config.DNS => %v", i.DNSServers)
+		logger.Debugf("HostConfig.DNS/Config.DNS => %v", i.DNSServers)
 	}
 
 	if len(i.DNSSearchDomains) > 0 {
 		containerOptions.HostConfig.DNSSearch = i.DNSSearchDomains
-		i.logger.Debugf("RunContainer: HostConfig.DNSSearch => %v", i.DNSSearchDomains)
+		logger.Debugf("HostConfig.DNSSearch => %v", i.DNSSearchDomains)
 	}
 
 	containerInfo, err := i.APIClient.CreateContainer(containerOptions)
@@ -623,7 +631,7 @@ func (i *Inspector) RunContainer() error {
 	}
 
 	if i.ContainerName != containerInfo.Name {
-		i.logger.Debugf("RunContainer: Container name mismatch expected=%v got=%v", i.ContainerName, containerInfo.Name)
+		logger.Debugf("Container name mismatch expected=%v got=%v", i.ContainerName, containerInfo.Name)
 	}
 
 	i.ContainerID = containerInfo.ID
@@ -642,18 +650,18 @@ func (i *Inspector) RunContainer() error {
 			networkLinks = i.Links
 		}
 
-		i.logger.Debugf("RunContainer: SelectedNetworks => %#v", i.SelectedNetworks)
+		logger.Debugf("SelectedNetworks => %#v", i.SelectedNetworks)
 		for key, netNameInfo := range i.SelectedNetworks {
 			err = attachContainerToNetwork(i.logger, i.APIClient, i.ContainerID, netNameInfo, networkLinks)
 			if err != nil {
-				i.logger.Debugf("RunContainer: AttachContainerToNetwork(%s,%+v) key=%s error => %#v", i.ContainerID, netNameInfo, key, err)
+				logger.Debugf("AttachContainerToNetwork(%s,%+v) key=%s error => %#v", i.ContainerID, netNameInfo, key, err)
 				return err
 			}
 		}
 	}
 
 	if err := i.APIClient.AddEventListener(i.dockerEventCh); err != nil {
-		i.logger.Debugf("RunContainer: i.APIClient.AddEventListener error => %v", err)
+		logger.Debugf("i.APIClient.AddEventListener error => %v", err)
 		return err
 	}
 	go func() {
@@ -695,7 +703,7 @@ func (i *Inspector) RunContainer() error {
 				}
 
 			case <-i.dockerEventStopCh:
-				i.logger.Debug("RunContainer: Docker event monitor stopped")
+				logger.Debug("Docker event monitor stopped")
 				return
 			}
 		}
@@ -704,9 +712,15 @@ func (i *Inspector) RunContainer() error {
 	signals := make(chan os.Signal, 1)
 	signal.Notify(signals, syscall.SIGINT)
 	go func() {
-		<-signals
-		_ = i.APIClient.KillContainer(dockerapi.KillContainerOptions{ID: i.ContainerID})
-		i.logger.Fatalf("KillContainer: slim received SIGINT, killing container %s", i.ContainerID)
+		select {
+		case <-signals:
+			_ = i.APIClient.KillContainer(dockerapi.KillContainerOptions{ID: i.ContainerID})
+			logger.Fatalf("[SIGMON] received SIGINT, killing container %s", i.ContainerID)
+		case <-i.dockerEventStopCh:
+			logger.Debug("[SIGMON] Docker event monitor stopped")
+			//not killing target because we are going through a graceful shutdown
+			//where we sent the StopMonitor and ShutdownSensor ipc commands
+		}
 	}()
 
 	if err := i.APIClient.StartContainer(i.ContainerID, nil); err != nil {
@@ -721,12 +735,12 @@ func (i *Inspector) RunContainer() error {
 	errutil.FailWhen(i.ContainerInfo.NetworkSettings == nil, "slim: error => no network info")
 
 	if hCfg := i.ContainerInfo.HostConfig; hCfg != nil && !i.isHostNetworked() {
-		i.logger.Debugf("RunContainer: container HostConfig.NetworkMode => %s len(ports)=%d",
+		logger.Debugf("container HostConfig.NetworkMode => %s len(ports)=%d",
 			hCfg.NetworkMode, len(i.ContainerInfo.NetworkSettings.Ports))
 		errutil.FailWhen(len(i.ContainerInfo.NetworkSettings.Ports) < len(commsExposedPorts), "slim: error => missing comms ports")
 	}
 
-	i.logger.Debugf("RunContainer: container NetworkSettings.Ports => %#v", i.ContainerInfo.NetworkSettings.Ports)
+	logger.Debugf("container NetworkSettings.Ports => %#v", i.ContainerInfo.NetworkSettings.Ports)
 
 	i.setAvailablePorts(hostProbePorts)
 
@@ -779,6 +793,11 @@ func (i *Inspector) RunContainer() error {
 	}
 
 	cmd.IncludeShell = i.DoIncludeShell
+
+	if i.DoIncludeWorkdir {
+		cmd.IncludeWorkdir = i.ImageInspector.ImageInfo.Config.WorkingDir
+	}
+
 	cmd.IncludeCertAll = i.DoIncludeCertAll
 	cmd.IncludeCertBundles = i.DoIncludeCertBundles
 	cmd.IncludeCertDirs = i.DoIncludeCertDirs
@@ -809,6 +828,8 @@ func (i *Inspector) RunContainer() error {
 
 	cmd.IncludeNodePackages = i.appNodejsInspectOpts.IncludePackages
 
+	cmd.ObfuscateMetadata = i.DoObfuscateMetadata
+
 	_, err = i.ipcClient.SendCommand(cmd)
 	if err != nil {
 		return err
@@ -836,7 +857,7 @@ func (i *Inspector) RunContainer() error {
 						})
 				}
 
-				i.logger.Debug("timeout waiting for the slim container to start...")
+				logger.Debug("timeout waiting for the slim container to start...")
 				continue
 			}
 
@@ -844,7 +865,7 @@ func (i *Inspector) RunContainer() error {
 		}
 
 		if evt == nil || evt.Name == "" {
-			i.logger.Warn("empty event waiting for the slim container to start (trying again)...")
+			logger.Warn("empty event waiting for the slim container to start (trying again)...")
 			continue
 		}
 
@@ -1116,7 +1137,35 @@ func (i *Inspector) ShutdownContainer() error {
 		return nil
 	}
 
+	logger := i.logger.WithField("op", "container.Inspector.ShutdownContainer")
 	i.isDone.On()
+
+	defer func() {
+		i.shutdownContainerChannels()
+
+		if i.DoShowContainerLogs {
+			i.ShowContainerLogs()
+		}
+
+		err := i.APIClient.StopContainer(i.ContainerID, 9)
+
+		if _, ok := err.(*dockerapi.ContainerNotRunning); ok {
+			logger.Info("can't stop the slim container (container is not running)...")
+		} else {
+			errutil.WarnOn(err)
+		}
+
+		removeOption := dockerapi.RemoveContainerOptions{
+			ID:            i.ContainerID,
+			RemoveVolumes: true,
+			Force:         true,
+		}
+
+		if err := i.APIClient.RemoveContainer(removeOption); err != nil {
+			logger.Info("error removing container =>", err)
+		}
+	}()
+
 	if !i.DoUseLocalMounts {
 		deleteOrig := true
 		if i.DoKeepTmpArtifacts {
@@ -1127,7 +1176,9 @@ func (i *Inspector) ShutdownContainer() error {
 		reportRemotePath := filepath.Join(app.DefaultArtifactsDirPath, report.DefaultContainerReportFileName)
 		err := dockerutil.CopyFromContainer(i.APIClient, i.ContainerID, reportRemotePath, reportLocalPath, true, deleteOrig)
 		if err != nil {
-			errutil.FailOn(err)
+			logger.WithError(err).WithField("container", i.ContainerID).Error("dockerutil.CopyFromContainer")
+			//can't call errutil.FailOn() because we won't cleanup the target container
+			return err
 		}
 
 		/*
@@ -1149,7 +1200,9 @@ func (i *Inspector) ShutdownContainer() error {
 		filesRemotePath := filepath.Join(app.DefaultArtifactsDirPath, app.ArtifactFilesDirName)
 		err = dockerutil.CopyFromContainer(i.APIClient, i.ContainerID, filesRemotePath, filesOutLocalPath, false, false)
 		if err != nil {
-			errutil.FailOn(err)
+			logger.WithError(err).WithField("container", i.ContainerID).Error("dockerutil.CopyFromContainer")
+			//can't call errutil.FailOn() because we won't cleanup the target container
+			return err
 		}
 
 		//NOTE: possible enhancement (if the original filemode bits still get lost)
@@ -1159,32 +1212,10 @@ func (i *Inspector) ShutdownContainer() error {
 		//octal filemodes for the file records
 		err = dockerutil.PrepareContainerDataArchive(filesOutLocalPath, fileArtifactsTar, app.ArtifactFilesDirName+"/", deleteOrig)
 		if err != nil {
-			errutil.FailOn(err)
+			logger.WithError(err).WithField("container", i.ContainerID).Error("dockerutil.PrepareContainerDataArchive")
+			//can't call errutil.FailOn() because we won't cleanup the target container
+			return err
 		}
-	}
-
-	i.shutdownContainerChannels()
-
-	if i.DoShowContainerLogs {
-		i.ShowContainerLogs()
-	}
-
-	err := i.APIClient.StopContainer(i.ContainerID, 9)
-
-	if _, ok := err.(*dockerapi.ContainerNotRunning); ok {
-		i.logger.Info("can't stop the slim container (container is not running)...")
-	} else {
-		errutil.WarnOn(err)
-	}
-
-	removeOption := dockerapi.RemoveContainerOptions{
-		ID:            i.ContainerID,
-		RemoveVolumes: true,
-		Force:         true,
-	}
-
-	if err := i.APIClient.RemoveContainer(removeOption); err != nil {
-		i.logger.Info("error removing container =>", err)
 	}
 
 	return nil
@@ -1356,6 +1387,7 @@ func ensureSensorVolume(logger *log.Entry, client *dockerapi.Client, localSensor
 	switch {
 	case err == nil:
 		logger.Debugf("ensureSensorVolume: already have volume = %v", volumeName)
+		//TODO: need to check if the volume has the sensor (otherwise delete and recreate)
 	case err == dockerutil.ErrNotFound:
 		logger.Debugf("ensureSensorVolume: no volume yet = %v", volumeName)
 		if dockerutil.HasEmptyImage(client) == dockerutil.ErrNotFound {

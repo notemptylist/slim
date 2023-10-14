@@ -65,6 +65,7 @@ var CLI = &cli.Command{
 		commands.Cflag(commands.FlagCmd),
 		commands.Cflag(commands.FlagWorkdir),
 		commands.Cflag(commands.FlagEnv),
+		commands.Cflag(commands.FlagEnvFile),
 		commands.Cflag(commands.FlagLabel),
 		commands.Cflag(commands.FlagVolume),
 		commands.Cflag(commands.FlagLink),
@@ -206,7 +207,7 @@ var CLI = &cli.Command{
 		doRunTargetAsUser := ctx.Bool(commands.FlagRunTargetAsUser)
 
 		doShowContainerLogs := ctx.Bool(commands.FlagShowContainerLogs)
-		overrides, err := commands.GetContainerOverrides(ctx)
+		overrides, err := commands.GetContainerOverrides(xc, ctx)
 		if err != nil {
 			xc.Out.Error("param.error.container.overrides", err.Error())
 			xc.Out.State("exited",

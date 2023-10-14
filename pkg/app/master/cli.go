@@ -10,6 +10,7 @@ import (
 
 	"github.com/docker-slim/docker-slim/pkg/app"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands"
+	"github.com/docker-slim/docker-slim/pkg/app/master/commands/appbom"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/build"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/containerize"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/convert"
@@ -19,6 +20,7 @@ import (
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/help"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/install"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/lint"
+	"github.com/docker-slim/docker-slim/pkg/app/master/commands/merge"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/probe"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/profile"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands/registry"
@@ -46,9 +48,11 @@ func registerCommands() {
 	xray.RegisterCommand()
 	lint.RegisterCommand()
 	build.RegisterCommand()
+	merge.RegisterCommand()
 	registry.RegisterCommand()
 	profile.RegisterCommand()
 	version.RegisterCommand()
+	appbom.RegisterCommand()
 	help.RegisterCommand()
 	update.RegisterCommand()
 	install.RegisterCommand()
@@ -65,6 +69,7 @@ func registerCommands() {
 func newCLI() *cli.App {
 	registerCommands()
 
+	doShowCommunityInfo := true
 	cliApp := cli.NewApp()
 	cliApp.Version = v.Current()
 	cliApp.Name = AppName
@@ -147,17 +152,20 @@ func newCLI() *cli.App {
 
 		log.Debugf("sysinfo => %#v", system.GetSystemInfo())
 
+		//NOTE: not displaying the community info here to reduce noise
 		//tmp hack
-		if !strings.Contains(strings.Join(os.Args, " "), " docker-cli-plugin-metadata") {
-			app.ShowCommunityInfo(gparams.ConsoleOutput)
-		}
+		//if !strings.Contains(strings.Join(os.Args, " "), " docker-cli-plugin-metadata") {
+		//   app.ShowCommunityInfo(gparams.ConsoleOutput)
+		//}
 		return nil
 	}
 
 	cliApp.After = func(ctx *cli.Context) error {
 		//tmp hack
 		if !strings.Contains(strings.Join(os.Args, " "), " docker-cli-plugin-metadata") {
-			app.ShowCommunityInfo(ctx.String(commands.FlagConsoleFormat))
+			if doShowCommunityInfo {
+				app.ShowCommunityInfo(ctx.String(commands.FlagConsoleFormat))
+			}
 		}
 		return nil
 	}
@@ -168,6 +176,8 @@ func newCLI() *cli.App {
 			return err
 		}
 
+		//disable community info in interactive mode (too noisy)
+		doShowCommunityInfo = false
 		ia := commands.NewInteractiveApp(cliApp, gcvalues)
 		ia.Run()
 		return nil

@@ -26,12 +26,9 @@ const (
 
 var (
 	sensorFullLifecycleSequence = []string{
-		"sensor: uid=0 euid=0",
+		"sensor: ver=",
 		"sensor: creating monitors...",
 		"sensor: starting monitors...",
-		"fanmon: Start",
-		"ptmon: Start",
-		"sensor: monitor - saving report",
 		"sensor: monitor - saving report",
 		"sensor: done!",
 	}

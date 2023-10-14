@@ -2,7 +2,7 @@ package build
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"strings"
 
 	log "github.com/sirupsen/logrus"
@@ -11,6 +11,7 @@ import (
 	"github.com/docker-slim/docker-slim/pkg/app"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands"
 	"github.com/docker-slim/docker-slim/pkg/app/master/config"
+	"github.com/docker-slim/docker-slim/pkg/artifact"
 	"github.com/docker-slim/docker-slim/pkg/util/errutil"
 )
 
@@ -80,6 +81,7 @@ var CLI = &cli.Command{
 		commands.Cflag(commands.FlagCmd),
 		commands.Cflag(commands.FlagWorkdir),
 		commands.Cflag(commands.FlagEnv),
+		commands.Cflag(commands.FlagEnvFile),
 		commands.Cflag(commands.FlagLabel),
 		commands.Cflag(commands.FlagVolume),
 		commands.Cflag(commands.FlagLink),
@@ -126,6 +128,11 @@ var CLI = &cli.Command{
 		cflag(FlagIncludeExeFile),
 		cflag(FlagIncludeExe),
 		cflag(FlagIncludeShell),
+		cflag(FlagIncludeWorkdir),
+		cflag(FlagIncludeAppImageAll),
+		cflag(FlagAppImageStartInstGroup),
+		cflag(FlagAppImageStartInst),
+		cflag(FlagAppImageDockerfile),
 		cflag(FlagIncludePathsCreportFile),
 		cflag(FlagIncludeOSLibsNet),
 		cflag(FlagIncludeCertAll),
@@ -149,6 +156,7 @@ var CLI = &cli.Command{
 		cflag(FlagKeepPerms),
 		cflag(FlagPathPerms),
 		cflag(FlagPathPermsFile),
+		cflag(FlagObfuscateMetadata),
 		commands.Cflag(commands.FlagContinueAfter),
 		commands.Cflag(commands.FlagUseLocalMounts),
 		commands.Cflag(commands.FlagUseSensorVolume),
@@ -192,7 +200,7 @@ var CLI = &cli.Command{
 		composeSvcStartWait := ctx.Int(commands.FlagComposeSvcStartWait)
 
 		composeEnvNoHost := ctx.Bool(commands.FlagComposeEnvNoHost)
-		composeEnvVars, err := commands.ParseEnvFile(ctx.String(commands.FlagComposeEnvFile))
+		composeEnvVars, err := commands.ParseLinesWithCommentsFile(ctx.String(commands.FlagComposeEnvFile))
 		if err != nil {
 			xc.Out.Error("param.error.compose.env.file", err.Error())
 			xc.Out.State("exited",
@@ -341,7 +349,7 @@ var CLI = &cli.Command{
 		}
 		var execFileCmd []byte
 		if len(execFile) > 0 {
-			execFileCmd, err = ioutil.ReadFile(execFile)
+			execFileCmd, err = os.ReadFile(execFile)
 			errutil.FailOn(err)
 
 			if !strings.Contains(continueAfter.Mode, config.CAMExec) {
@@ -451,7 +459,7 @@ var CLI = &cli.Command{
 		outputTags := ctx.StringSlice(FlagTag)
 
 		doImageOverrides := ctx.String(FlagImageOverrides)
-		overrides, err := commands.GetContainerOverrides(ctx)
+		overrides, err := commands.GetContainerOverrides(xc, ctx)
 		if err != nil {
 			xc.Out.Error("param.error.image.overrides", err.Error())
 			xc.Out.State("exited",
@@ -498,6 +506,35 @@ var CLI = &cli.Command{
 			}
 		}
 
+		if len(preservePaths) > 0 {
+			for filtered := range artifact.FilteredPaths {
+				if _, found := preservePaths[filtered]; found {
+					delete(preservePaths, filtered)
+					xc.Out.Info("params",
+						ovars{
+							"preserve.path": filtered,
+							"message":       "ignoring",
+						})
+				}
+			}
+
+			var toDelete []string
+			for ip := range preservePaths {
+				if artifact.IsFilteredPath(ip) {
+					toDelete = append(toDelete, ip)
+				}
+			}
+
+			for _, dp := range toDelete {
+				delete(preservePaths, dp)
+				xc.Out.Info("params",
+					ovars{
+						"preserve.path": dp,
+						"message":       "ignoring",
+					})
+			}
+		}
+
 		includePaths := commands.ParsePaths(ctx.StringSlice(FlagIncludePath))
 		moreIncludePaths, err := commands.ParsePathsFile(ctx.String(FlagIncludePathFile))
 		if err != nil {
@@ -514,11 +551,29 @@ var CLI = &cli.Command{
 		}
 
 		if len(includePaths) > 0 {
-			if _, found := includePaths["/"]; found {
-				delete(includePaths, "/")
+			for filtered := range artifact.FilteredPaths {
+				if _, found := includePaths[filtered]; found {
+					delete(includePaths, filtered)
+					xc.Out.Info("params",
+						ovars{
+							"include.path": filtered,
+							"message":      "ignoring",
+						})
+				}
+			}
+
+			var toDelete []string
+			for ip := range includePaths {
+				if artifact.IsFilteredPath(ip) {
+					toDelete = append(toDelete, ip)
+				}
+			}
+
+			for _, dp := range toDelete {
+				delete(includePaths, dp)
 				xc.Out.Info("params",
 					ovars{
-						"include.path": "/",
+						"include.path": dp,
 						"message":      "ignoring",
 					})
 			}
@@ -568,6 +623,36 @@ var CLI = &cli.Command{
 			}
 		}
 
+		if len(includeBins) > 0 {
+			//shouldn't happen, but filtering either way
+			for filtered := range artifact.FilteredPaths {
+				if _, found := includeBins[filtered]; found {
+					delete(includeBins, filtered)
+					xc.Out.Info("params",
+						ovars{
+							"include.bin": filtered,
+							"message":     "ignoring",
+						})
+				}
+			}
+
+			var toDelete []string
+			for ip := range includeBins {
+				if artifact.IsFilteredPath(ip) {
+					toDelete = append(toDelete, ip)
+				}
+			}
+
+			for _, dp := range toDelete {
+				delete(includeBins, dp)
+				xc.Out.Info("params",
+					ovars{
+						"include.bin": dp,
+						"message":     "ignoring",
+					})
+			}
+		}
+
 		includeExes := commands.ParsePaths(ctx.StringSlice(FlagIncludeExe))
 		moreIncludeExes, err := commands.ParsePathsFile(ctx.String(FlagIncludeExeFile))
 		if err != nil {
@@ -584,6 +669,23 @@ var CLI = &cli.Command{
 		}
 
 		doIncludeShell := ctx.Bool(FlagIncludeShell)
+
+		doIncludeWorkdir := ctx.Bool(FlagIncludeWorkdir)
+		includeLastImageLayers := uint(0)
+		doIncludeAppImageAll := ctx.Bool(FlagIncludeAppImageAll)
+		appImageStartInstGroup := ctx.Int(FlagAppImageStartInstGroup)
+		appImageStartInst := ctx.String(FlagAppImageStartInst)
+
+		appImageDockerfilePath := ctx.String(FlagAppImageDockerfile)
+		appImageDockerfileInsts, err := commands.ParseLinesWithCommentsFile(appImageDockerfilePath)
+		if err != nil {
+			xc.Out.Error("param.error.app.image.dockerfile", err.Error())
+			xc.Out.State("exited",
+				ovars{
+					"exit.code": -1,
+				})
+			xc.Exit(-1)
+		}
 
 		doIncludeOSLibsNet := ctx.Bool(FlagIncludeOSLibsNet)
 
@@ -616,6 +718,8 @@ var CLI = &cli.Command{
 
 		rtaOnbuildBaseImage := ctx.Bool(commands.FlagRTAOnbuildBaseImage)
 		rtaSourcePT := ctx.Bool(commands.FlagRTASourcePT)
+
+		doObfuscateMetadata := ctx.Bool(FlagObfuscateMetadata)
 
 		imageBuildEngine, err := getImageBuildEngine(ctx)
 		if err != nil {
@@ -690,6 +794,12 @@ var CLI = &cli.Command{
 			includeBins,
 			includeExes,
 			doIncludeShell,
+			doIncludeWorkdir,
+			includeLastImageLayers,
+			doIncludeAppImageAll,
+			appImageStartInstGroup,
+			appImageStartInst,
+			appImageDockerfileInsts,
 			doIncludeOSLibsNet,
 			doIncludeCertAll,
 			doIncludeCertBundles,
@@ -706,6 +816,7 @@ var CLI = &cli.Command{
 			deleteFatImage,
 			rtaOnbuildBaseImage,
 			rtaSourcePT,
+			doObfuscateMetadata,
 			ctx.String(commands.FlagSensorIPCEndpoint),
 			ctx.String(commands.FlagSensorIPCMode),
 			kubeOpts,

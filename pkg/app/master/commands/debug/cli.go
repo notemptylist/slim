@@ -1,7 +1,7 @@
 package debug
 
 import (
-	"fmt"
+	"strings"
 
 	"github.com/urfave/cli/v2"
 
@@ -13,23 +13,81 @@ import (
 
 const (
 	Name  = "debug"
-	Usage = "Debug the target container image from a debug container"
+	Usage = "Debug the target container from a debug (side-car) container"
 	Alias = "dbg"
-
-	FlagDebugImage = "debug-image"
-
-	DefaultDebugImage = "nicolaka/netshoot"
 )
 
+const (
+	DockerRuntime     = "docker"
+	KubernetesRuntime = "k8s"
+	KubeconfigDefault = "${HOME}/.kube/config"
+	NamespaceDefault  = "default"
+)
+
+type NVPair struct {
+	Name  string
+	Value string
+}
+
 type CommandParams struct {
+	/// the runtime environment type
+	Runtime string
 	/// the running container which we want to attach to
 	TargetRef string
+	/// the target namespace (k8s runtime)
+	TargetNamespace string
+	/// the target pod (k8s runtime)
+	TargetPod string
 	/// the name/id of the container image used for debugging
 	DebugContainerImage string
-	/// CMD used for launching the debugging image
-	DebugContainerImageCmd []string
-	/// launch the debug container with --it
-	AttachTty bool
+	/// ENTRYPOINT used launching the debugging container
+	Entrypoint []string
+	/// CMD used launching the debugging container
+	Cmd []string
+	/// WORKDIR used launching the debugging container
+	Workdir string
+	/// Environment variables used launching the debugging container
+	EnvVars []NVPair
+	/// launch the debug container with an interactive terminal attached (like '--it' in docker)
+	DoTerminal bool
+	/// make it look like shell is running in the target container
+	DoRunAsTargetShell bool
+	/// Kubeconfig file path (k8s runtime)
+	Kubeconfig string
+	/// Debug session container name
+	Session string
+	/// Simple (non-debug) action - list namespaces
+	ActionListNamespaces bool
+	/// Simple (non-debug) action - list pods
+	ActionListPods bool
+	/// Simple (non-debug) action - list debuggable container
+	ActionListDebuggableContainers bool
+	/// Simple (non-debug) action - list debug sessions
+	ActionListSessions bool
+	/// Simple (non-debug) action - show debug sessions logs
+	ActionShowSessionLogs bool
+	/// Simple (non-debug) action - connect to an existing debug session
+	ActionConnectSession bool
+}
+
+func ParseNameValueList(list []string) []NVPair {
+	var pairs []NVPair
+	for _, val := range list {
+		val = strings.TrimSpace(val)
+		if val == "" {
+			continue
+		}
+
+		parts := strings.SplitN(val, "=", 2)
+		if len(parts) != 2 {
+			continue
+		}
+
+		nv := NVPair{Name: parts[0], Value: parts[1]}
+		pairs = append(pairs, nv)
+	}
+
+	return pairs
 }
 
 var CLI = &cli.Command{
@@ -37,49 +95,146 @@ var CLI = &cli.Command{
 	Aliases: []string{Alias},
 	Usage:   Usage,
 	Flags: []cli.Flag{
-		&cli.StringFlag{
-			Name:        FlagDebugImage,
-			DefaultText: DefaultDebugImage,
-			Required:    false,
-		},
+		cflag(FlagRuntime),
+		cflag(FlagTarget),
+		cflag(FlagNamespace),
+		cflag(FlagPod),
+		cflag(FlagDebugImage),
+		cflag(FlagEntrypoint),
+		cflag(FlagCmd),
+		cflag(FlagWorkdir),
+		cflag(FlagEnv),
+		cflag(FlagTerminal),
+		cflag(FlagRunAsTargetShell),
+		cflag(FlagListSessions),
+		cflag(FlagShowSessionLogs),
+		cflag(FlagConnectSession),
+		cflag(FlagSession),
+		cflag(FlagListNamespaces),
+		cflag(FlagListPods),
+		cflag(FlagListDebuggableContainers),
+		cflag(FlagListDebugImage),
+		cflag(FlagKubeconfig),
 	},
 	Action: func(ctx *cli.Context) error {
-		if ctx.Args().Len() < 1 {
-			fmt.Printf("slim[%s]: missing target info...\n\n", Name)
-			cli.ShowCommandHelp(ctx, Name)
-			return nil
-		}
+		xc := app.NewExecutionContext(Name, ctx.String(commands.FlagConsoleFormat))
 
 		gcvalues, err := commands.GlobalFlagValues(ctx)
 		if err != nil {
 			return err
 		}
 
-		commandParams := &CommandParams{
-			TargetRef:              ctx.String(commands.FlagTarget),
-			DebugContainerImage:    ctx.String(FlagDebugImage),
-			DebugContainerImageCmd: []string{},
-			AttachTty:              true,
+		if ctx.Bool(FlagListDebugImage) {
+			xc.Out.State("action.list_debug_images")
+			for k, v := range debugImages {
+				xc.Out.Info("debug.image", ovars{"name": k, "description": v})
+			}
+
+			return nil
 		}
 
-		xc := app.NewExecutionContext(Name, ctx.String(commands.FlagConsoleFormat))
+		commandParams := &CommandParams{
+			Runtime:                        ctx.String(FlagRuntime),
+			TargetRef:                      ctx.String(FlagTarget),
+			TargetNamespace:                ctx.String(FlagNamespace),
+			TargetPod:                      ctx.String(FlagPod),
+			DebugContainerImage:            ctx.String(FlagDebugImage),
+			DoTerminal:                     ctx.Bool(FlagTerminal),
+			DoRunAsTargetShell:             ctx.Bool(FlagRunAsTargetShell),
+			Kubeconfig:                     ctx.String(FlagKubeconfig),
+			Workdir:                        ctx.String(FlagWorkdir),
+			EnvVars:                        ParseNameValueList(ctx.StringSlice(FlagEnv)),
+			Session:                        ctx.String(FlagSession),
+			ActionListNamespaces:           ctx.Bool(FlagListNamespaces),
+			ActionListPods:                 ctx.Bool(FlagListPods),
+			ActionListDebuggableContainers: ctx.Bool(FlagListDebuggableContainers),
+			ActionListSessions:             ctx.Bool(FlagListSessions),
+			ActionShowSessionLogs:          ctx.Bool(FlagShowSessionLogs),
+			ActionConnectSession:           ctx.Bool(FlagConnectSession),
+		}
 
-		if commandParams.TargetRef == "" {
+		if commandParams.Runtime != KubernetesRuntime &&
+			(commandParams.ActionListNamespaces ||
+				commandParams.ActionListPods) {
+			var actionName string
+			if commandParams.ActionListNamespaces {
+				actionName = FlagListNamespaces
+			}
+
+			if commandParams.ActionListPods {
+				actionName = FlagListPods
+			}
+
+			xc.Out.Error("param", "unsupported runtime flag")
+			xc.Out.State("exited",
+				ovars{
+					"runtime.provided": commandParams.Runtime,
+					"runtime.required": KubernetesRuntime,
+					"action":           actionName,
+					"exit.code":        -1,
+				})
+
+			xc.Exit(-1)
+		}
+
+		if rawEntrypoint := ctx.String(FlagEntrypoint); rawEntrypoint != "" {
+			commandParams.Entrypoint, err = commands.ParseExec(rawEntrypoint)
+			if err != nil {
+				return err
+			}
+		}
+
+		if rawCmd := ctx.String(FlagCmd); rawCmd != "" {
+			commandParams.Cmd, err = commands.ParseExec(rawCmd)
+			if err != nil {
+				return err
+			}
+		}
+
+		//explicitly setting the entrypoint and/or cmd clears
+		//implies a custom debug session where the 'RATS' setting should be ignored
+		if len(commandParams.Entrypoint) > 0 || len(commandParams.Cmd) > 0 {
+			commandParams.DoRunAsTargetShell = false
+		}
+
+		if commandParams.DoRunAsTargetShell {
+			commandParams.DoTerminal = true
+		}
+
+		if !commandParams.ActionListNamespaces &&
+			!commandParams.ActionListPods &&
+			!commandParams.ActionListDebuggableContainers &&
+			!commandParams.ActionListSessions &&
+			!commandParams.ActionShowSessionLogs &&
+			!commandParams.ActionConnectSession &&
+			commandParams.TargetRef == "" {
 			if ctx.Args().Len() < 1 {
-				xc.Out.Error("param.target", "missing target")
-				cli.ShowCommandHelp(ctx, Name)
-				return nil
+				if commandParams.Runtime != KubernetesRuntime {
+					xc.Out.Error("param.target", "missing target")
+					cli.ShowCommandHelp(ctx, Name)
+					return nil
+				}
+				//NOTE:
+				//It's ok to not specify the target container for k8s
+				//We'll pick the default or first container in the target pod
 			} else {
 				commandParams.TargetRef = ctx.Args().First()
 				if ctx.Args().Len() > 1 && ctx.Args().Slice()[1] == "--" {
-					commandParams.AttachTty = false
-					commandParams.DebugContainerImageCmd = ctx.Args().Slice()[2:]
+					//NOTE:
+					//Keep the original 'no terminal' behavior
+					//use this shortcut mode as a way to quickly
+					//run one off commands in the debugged container
+					//When there's 'no terminal' we show
+					//the debugger container log at the end.
+					//TODO: revisit the behavior later...
+					commandParams.DoTerminal = false
+					commandParams.Cmd = ctx.Args().Slice()[2:]
 				}
 			}
 		}
 
 		if commandParams.DebugContainerImage == "" {
-			commandParams.DebugContainerImage = DefaultDebugImage
+			commandParams.DebugContainerImage = BusyboxImage
 		}
 
 		OnCommand(

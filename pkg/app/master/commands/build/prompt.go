@@ -77,6 +77,7 @@ var CommandFlagSuggestions = &commands.FlagSuggestions{
 		{Text: commands.FullFlagName(commands.FlagCmd), Description: commands.FlagCmdUsage},
 		{Text: commands.FullFlagName(commands.FlagWorkdir), Description: commands.FlagWorkdirUsage},
 		{Text: commands.FullFlagName(commands.FlagEnv), Description: commands.FlagEnvUsage},
+		{Text: commands.FullFlagName(commands.FlagEnvFile), Description: commands.FlagEnvFileUsage},
 		{Text: commands.FullFlagName(commands.FlagLabel), Description: commands.FlagLabelUsage},
 		{Text: commands.FullFlagName(commands.FlagVolume), Description: commands.FlagVolumeUsage},
 		{Text: commands.FullFlagName(commands.FlagLink), Description: commands.FlagLinkUsage},
@@ -110,6 +111,11 @@ var CommandFlagSuggestions = &commands.FlagSuggestions{
 		{Text: commands.FullFlagName(FlagIncludeExe), Description: FlagIncludeExeUsage},
 		{Text: commands.FullFlagName(FlagIncludeExeFile), Description: FlagIncludeExeFileUsage},
 		{Text: commands.FullFlagName(FlagIncludeShell), Description: FlagIncludeShellUsage},
+		{Text: commands.FullFlagName(FlagIncludeWorkdir), Description: FlagIncludeWorkdirUsage},
+		{Text: commands.FullFlagName(FlagIncludeAppImageAll), Description: FlagIncludeAppImageAllUsage},
+		{Text: commands.FullFlagName(FlagAppImageStartInstGroup), Description: FlagAppImageStartInstGroupUsage},
+		{Text: commands.FullFlagName(FlagAppImageStartInst), Description: FlagAppImageStartInstUsage},
+		{Text: commands.FullFlagName(FlagAppImageDockerfile), Description: FlagAppImageDockerfileUsage},
 		{Text: commands.FullFlagName(FlagIncludePathsCreportFile), Description: FlagIncludePathsCreportFileUsage},
 		{Text: commands.FullFlagName(FlagIncludeOSLibsNet), Description: FlagIncludeOSLibsNetUsage},
 		{Text: commands.FullFlagName(FlagIncludeCertAll), Description: FlagIncludeCertAllUsage},
@@ -150,6 +156,7 @@ var CommandFlagSuggestions = &commands.FlagSuggestions{
 		{Text: commands.FullFlagName(commands.FlagSensorIPCEndpoint), Description: commands.FlagSensorIPCEndpointUsage},
 		{Text: commands.FullFlagName(FlagImageBuildEngine), Description: FlagImageBuildEngineUsage},
 		{Text: commands.FullFlagName(FlagImageBuildArch), Description: FlagImageBuildArchUsage},
+		{Text: commands.FullFlagName(FlagObfuscateMetadata), Description: FlagObfuscateMetadataUsage},
 	},
 	Values: map[string]commands.CompleteValue{
 		//NOTE: with FlagPull target complete needs to check remote registries too
@@ -187,6 +194,8 @@ var CommandFlagSuggestions = &commands.FlagSuggestions{
 		commands.FullFlagName(FlagIncludeExeFile):                          commands.CompleteFile,
 		commands.FullFlagName(FlagIncludePathsCreportFile):                 commands.CompleteFile,
 		commands.FullFlagName(FlagIncludeShell):                            commands.CompleteBool,
+		commands.FullFlagName(FlagIncludeWorkdir):                          commands.CompleteBool,
+		commands.FullFlagName(FlagIncludeAppImageAll):                      commands.CompleteBool,
 		commands.FullFlagName(FlagIncludeOSLibsNet):                        commands.CompleteBool,
 		commands.FullFlagName(FlagIncludeCertAll):                          commands.CompleteBool,
 		commands.FullFlagName(FlagIncludeCertBundles):                      commands.CompleteBool,
@@ -217,6 +226,8 @@ var CommandFlagSuggestions = &commands.FlagSuggestions{
 		commands.FullFlagName(commands.FlagSensorIPCMode):       commands.CompleteIPCMode,
 		commands.FullFlagName(FlagImageBuildEngine):             CompleteImageBuildEngine,
 		commands.FullFlagName(FlagImageBuildArch):               CompleteImageBuildArch,
+		commands.FullFlagName(FlagAppImageDockerfile):           commands.CompleteFile,
+		commands.FullFlagName(FlagObfuscateMetadata):            commands.CompleteBool,
 	},
 }
 

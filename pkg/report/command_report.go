@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 
@@ -198,6 +197,17 @@ type ConvertCommand struct {
 	Command
 }
 
+// Output Version for 'merge'
+const OVMergeCommand = "1.0"
+
+// MergeCommand is the 'merge' command report data
+type MergeCommand struct {
+	Command
+	FirstImage           string `json:"first_image"`
+	LastImage            string `json:"last_image"`
+	UseLastImageMetadata bool   `json:"use_last_image_metadata"`
+}
+
 // Output Version for 'edit'
 const OVEditCommand = "1.0"
 
@@ -350,6 +360,21 @@ func NewConvertCommand(reportLocation string, containerized bool) *ConvertComman
 	return cmd
 }
 
+// NewMergeCommand creates a new 'edit' command report
+func NewMergeCommand(reportLocation string, containerized bool) *MergeCommand {
+	cmd := &MergeCommand{
+		Command: Command{
+			reportLocation: reportLocation,
+			Version:        OVMergeCommand, //edit command 'results' version (report and artifacts)
+			Type:           command.Merge,
+			State:          command.StateUnknown,
+		},
+	}
+
+	cmd.Command.init(containerized)
+	return cmd
+}
+
 // NewEditCommand creates a new 'edit' command report
 func NewEditCommand(reportLocation string, containerized bool) *EditCommand {
 	cmd := &EditCommand{
@@ -470,12 +495,12 @@ func (p *Command) saveInfo(info interface{}) bool {
 		err := encoder.Encode(info)
 		errutil.FailOn(err)
 
-		err = ioutil.WriteFile(p.reportLocation, reportData.Bytes(), 0644)
+		err = os.WriteFile(p.reportLocation, reportData.Bytes(), 0644)
 		if err != nil && os.IsPermission(err) {
 			if pinfo, tmpErr := os.Stat(tmpPath); tmpErr == nil && pinfo.IsDir() {
 				p.reportLocation = filepath.Join(tmpPath, DefaultFilename)
 				log.Debugf("report.saveInfo - overriding command report file path to %v", p.reportLocation)
-				err = ioutil.WriteFile(p.reportLocation, reportData.Bytes(), 0644)
+				err = os.WriteFile(p.reportLocation, reportData.Bytes(), 0644)
 			} else {
 				fmt.Printf("report.Command.saveInfo: not saving report file - '%s'\n", p.reportLocation)
 				return false

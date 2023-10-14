@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -19,13 +18,14 @@ import (
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands"
 	"github.com/docker-slim/docker-slim/pkg/app/master/compose"
 	"github.com/docker-slim/docker-slim/pkg/app/master/config"
-	"github.com/docker-slim/docker-slim/pkg/app/master/docker/dockerclient"
 	"github.com/docker-slim/docker-slim/pkg/app/master/inspectors/container"
 	"github.com/docker-slim/docker-slim/pkg/app/master/inspectors/image"
 	"github.com/docker-slim/docker-slim/pkg/app/master/inspectors/probes/http"
 	"github.com/docker-slim/docker-slim/pkg/app/master/kubernetes"
 	"github.com/docker-slim/docker-slim/pkg/app/master/version"
 	"github.com/docker-slim/docker-slim/pkg/command"
+	"github.com/docker-slim/docker-slim/pkg/docker/dockerclient"
+	"github.com/docker-slim/docker-slim/pkg/docker/dockerimage"
 	"github.com/docker-slim/docker-slim/pkg/docker/dockerutil"
 	"github.com/docker-slim/docker-slim/pkg/report"
 	"github.com/docker-slim/docker-slim/pkg/util/errutil"
@@ -118,6 +118,12 @@ func OnCommand(
 	includeBins map[string]*fsutil.AccessInfo,
 	includeExes map[string]*fsutil.AccessInfo,
 	doIncludeShell bool,
+	doIncludeWorkdir bool,
+	includeLastImageLayers uint,
+	doIncludeAppImageAll bool,
+	appImageStartInstGroup int,
+	appImageStartInst string,
+	appImageDockerfileInsts []string,
 	doIncludeOSLibsNet bool,
 	doIncludeCertAll bool,
 	doIncludeCertBundles bool,
@@ -134,6 +140,7 @@ func OnCommand(
 	doDeleteFatImage bool,
 	rtaOnbuildBaseImage bool,
 	rtaSourcePT bool,
+	doObfuscateMetadata bool,
 	sensorIPCEndpoint string,
 	sensorIPCMode string,
 	kubeOpts config.KubernetesOptions,
@@ -184,7 +191,7 @@ func OnCommand(
 
 		xc.Out.Error("docker.connect.error", exitMsg)
 
-		exitCode := commands.ECTCommon | commands.ECNoDockerConnectInfo
+		exitCode := commands.ECTCommon | commands.ECCNoDockerConnectInfo
 		xc.Out.State("exited",
 			ovars{
 				"exit.code": exitCode,
@@ -570,7 +577,7 @@ func OnCommand(
 				"value":  overrides.Network,
 			})
 
-		exitCode := commands.ECTCommon | commands.ECBadNetworkName
+		exitCode := commands.ECTCommon | commands.ECCBadNetworkName
 		xc.Out.State("exited",
 			ovars{
 				"exit.code": exitCode,
@@ -588,7 +595,7 @@ func OnCommand(
 				"value":  overrides.Network,
 			})
 
-		exitCode := commands.ECTCommon | commands.ECBadNetworkName
+		exitCode := commands.ECTCommon | commands.ECCBadNetworkName
 		xc.Out.State("exited",
 			ovars{
 				"exit.code": exitCode,
@@ -612,6 +619,238 @@ func OnCommand(
 		client,
 		logger,
 		cmdReport)
+
+	loadExtraIncludePaths := func() {
+		if (includeLastImageLayers > 0) ||
+			(appImageStartInstGroup > -1) ||
+			(appImageStartInst != "") ||
+			(len(appImageDockerfileInsts) > 0) {
+			logger.Debugf("loadExtraIncludePaths: includeLastImageLayers=%v appImageStartInstGroup=%v appImageStartInst='%v' len.appImageDockerfileInsts=%v",
+				includeLastImageLayers, appImageStartInstGroup, appImageStartInst, len(appImageDockerfileInsts))
+
+			includeLayerPaths := map[string]*fsutil.AccessInfo{}
+			imageID := dockerutil.CleanImageID(imageInspector.ImageInfo.ID)
+			iaName := fmt.Sprintf("%s.tar", imageID)
+			iaPath := filepath.Join(localVolumePath, "image", iaName)
+			iaPathReady := fmt.Sprintf("%s.ready", iaPath)
+
+			var doSave bool
+			if fsutil.IsRegularFile(iaPath) {
+				//if !doReuseSavedImage {
+				//	doSave = true
+				//}
+
+				if !fsutil.Exists(iaPathReady) {
+					doSave = true
+				}
+			} else {
+				doSave = true
+			}
+
+			if doSave {
+				if fsutil.Exists(iaPathReady) {
+					fsutil.Remove(iaPathReady)
+				}
+
+				xc.Out.Info("image.data.inspection.save.image.start")
+				err = dockerutil.SaveImage(client, imageID, iaPath, false, false)
+				errutil.FailOn(err)
+
+				err = fsutil.Touch(iaPathReady)
+				errutil.WarnOn(err)
+
+				xc.Out.Info("image.data.inspection.save.image.end")
+			} else {
+				logger.Debugf("exported image already exists - %s", iaPath)
+			}
+
+			xc.Out.Info("image.data.inspection.list.files.start")
+			imgFiles, err := dockerimage.NewPackageFiles(iaPath)
+			if err != nil {
+				logger.Errorf("loadExtraIncludePaths: dockerimage.NewPackageFiles(%v) error - %v", iaPath, err)
+			} else {
+				layerCount := imgFiles.LayerCount()
+
+				if (layerCount > 0) &&
+					((appImageStartInstGroup > -1) || (appImageStartInst != "") || (len(appImageDockerfileInsts) > 0)) &&
+					doIncludeAppImageAll {
+					//TODO: refactor the condition logic
+					//appImageStartInstGroup - reverse index
+					history, err := imgFiles.ListImageHistory()
+					if err != nil {
+						logger.Errorf("loadExtraIncludePaths: imgFiles.ListImageHistory() - error - %v", err)
+						return
+					}
+
+					layers, err := imgFiles.ListLayerMetadata()
+					if err != nil {
+						logger.Errorf("loadExtraIncludePaths: imgFiles.ListLayerMetadata() - error - %v", err)
+						return
+					}
+
+					if len(imageInspector.DockerfileInfo.AllInstructions) != len(history) {
+						logger.Errorf("loadExtraIncludePaths: instruction count (%d) != history count (%d)",
+							len(imageInspector.DockerfileInfo.AllInstructions), len(history))
+						return
+					}
+
+					appImageStartInstIndex := -1
+					appImageStartLayerIndex := -1
+					//var appImageStartLayerInfo *dockerimage.LayerMetadata
+
+					//calculate the start instruction index by iterating over df instruction list
+					var instCount int
+					if len(appImageDockerfileInsts) > 0 {
+						//use the instructions from the last 'stage' (first 'FROM' in reverse)
+						for i := len(appImageDockerfileInsts) - 1; i > -1; i-- {
+							if strings.HasPrefix(appImageDockerfileInsts[i], "FROM ") {
+								logger.Tracef("loadExtraIncludePaths: app image dockerfile (reverse) instruction count - [%v] %v", i, instCount)
+								break
+							}
+
+							if strings.HasPrefix(appImageDockerfileInsts[i], "ARG ") {
+								continue
+							}
+
+							instCount++
+						}
+					}
+
+					if instCount > 0 {
+						//NOTE: prefer reverse instruction count from the app image Dockerfile
+						for current, idx := 0, len(imageInspector.DockerfileInfo.AllInstructions)-1; idx > -1; idx-- {
+							current++
+							if current == instCount {
+								appImageStartInstIndex = idx
+								logger.Tracef("loadExtraIncludePaths: app image start instruction from app dockerfile - [%v][%v] %#v",
+									instCount, idx, imageInspector.DockerfileInfo.AllInstructions[idx])
+								break
+							}
+						}
+					} else {
+						for idx, instInfo := range imageInspector.DockerfileInfo.AllInstructions {
+							if appImageStartInst != "" {
+								//NOTE: prefer to use the start instruction prefix if it's provided
+								if strings.HasPrefix(instInfo.CommandAll, appImageStartInst) {
+									//use the fist match
+									appImageStartInstIndex = idx
+									logger.Tracef("loadExtraIncludePaths: app image start instruction match - [%v] %#v", idx, instInfo)
+									break
+								}
+							} else {
+								if instInfo.InstSetTimeReverseIndex == appImageStartInstGroup {
+									appImageStartInstIndex = idx
+									logger.Tracef("loadExtraIncludePaths: app image start instruction group match - [%v] => [%v] %#v", appImageStartInstGroup, idx, instInfo)
+									break
+								}
+							}
+						}
+					}
+
+					if appImageStartInstIndex > -1 {
+						rawLayerCount := 0
+						for hidx, record := range history {
+							if hidx == appImageStartInstIndex {
+								//start layer index is the layer that follows
+								//the last layer we've seen already
+								appImageStartLayerIndex = rawLayerCount
+								break
+							}
+
+							if !record.EmptyLayer {
+								rawLayerCount++
+							}
+
+							if rawLayerCount >= layerCount {
+								break
+							}
+						}
+
+						if appImageStartLayerIndex > -1 {
+							startLayerInfo := layers[appImageStartLayerIndex]
+							logger.Tracef("loadExtraIncludePaths: app image start layer - %#v", startLayerInfo)
+
+							if doIncludeAppImageAll {
+								selectors := []dockerimage.FileSelector{
+									{
+										Type:        dockerimage.FSTIndexRange,
+										IndexKey:    appImageStartLayerIndex,
+										IndexEndKey: layerCount - 1,
+										NoDirs:      true,
+										Deleted:     false,
+									},
+								}
+
+								if layerFiles, err := imgFiles.ListLayerFiles(selectors); err != nil {
+									logger.Errorf("loadExtraIncludePaths: imgFiles.ListLayerFiles() error - %v", err)
+								} else {
+									for _, lf := range layerFiles {
+										logger.Tracef("loadExtraIncludePaths: [ALS] layerFiles=%v/%v/%v fileCount=%v",
+											lf.Layer.Index,
+											lf.Layer.Digest,
+											lf.Layer.DiffID,
+											len(lf.Files))
+										for _, fileInfo := range lf.Files {
+											logger.Tracef("loadExtraIncludePaths: [ALS] layerFiles.File=%v", fileInfo.Name)
+											includeLayerPaths[fileInfo.Name] = nil
+										}
+									}
+								}
+							} else {
+								logger.Debugf("loadExtraIncludePaths: doIncludeAppImageAll=false")
+							}
+						} else {
+							logger.Debug("loadExtraIncludePaths: no layer instructions found")
+						}
+					} else {
+						logger.Debug("loadExtraIncludePaths: no appImageStartInstIndex")
+					}
+				}
+
+				if includeLastImageLayers > 0 {
+					if includeLastImageLayers > uint(layerCount) {
+						logger.Debugf("includeLastImageLayers(%v) > layerCount(%v)", includeLastImageLayers, layerCount)
+						includeLastImageLayers = uint(layerCount)
+					}
+
+					selectors := []dockerimage.FileSelector{
+						{
+							Type:              dockerimage.FSTIndexRange,
+							IndexKey:          0,
+							IndexEndKey:       int(includeLastImageLayers) - 1,
+							ReverseIndexRange: true,
+							NoDirs:            true,
+							Deleted:           false,
+						},
+					}
+
+					if layerFiles, err := imgFiles.ListLayerFiles(selectors); err != nil {
+						logger.Errorf("imgFiles.ListLayerFiles() error - %v", err)
+					} else {
+						for _, lf := range layerFiles {
+							logger.Tracef("layerFiles=%v/%v/%v fileCount=%v",
+								lf.Layer.Index,
+								lf.Layer.Digest,
+								lf.Layer.DiffID,
+								len(lf.Files))
+							for _, fileInfo := range lf.Files {
+								logger.Tracef("layerFiles.File=%v", fileInfo.Name)
+								includeLayerPaths[fileInfo.Name] = nil
+							}
+						}
+					}
+				}
+
+			}
+			xc.Out.Info("image.data.inspection.list.files.end")
+
+			for k := range includeLayerPaths {
+				includePaths[k] = nil
+			}
+		}
+	}
+
+	loadExtraIncludePaths()
 
 	//refresh the target refs
 	targetRef = imageInspector.ImageRef
@@ -837,6 +1076,7 @@ func OnCommand(
 		includeBins,
 		includeExes,
 		doIncludeShell,
+		doIncludeWorkdir,
 		doIncludeCertAll,
 		doIncludeCertBundles,
 		doIncludeCertDirs,
@@ -850,6 +1090,7 @@ func OnCommand(
 		gparams.LogFormat,
 		gparams.InContainer,
 		rtaSourcePT,
+		doObfuscateMetadata,
 		sensorIPCEndpoint,
 		sensorIPCMode,
 		printState,
@@ -1364,7 +1605,7 @@ func finishCommand(
 
 	if cmdReport.ArtifactLocation != "" {
 		creportPath := filepath.Join(cmdReport.ArtifactLocation, cmdReport.ContainerReportName)
-		if creportData, err := ioutil.ReadFile(creportPath); err == nil {
+		if creportData, err := os.ReadFile(creportPath); err == nil {
 			var creport report.ContainerReport
 			if err := json.Unmarshal(creportData, &creport); err == nil {
 				cmdReport.System = report.SystemMetadata{

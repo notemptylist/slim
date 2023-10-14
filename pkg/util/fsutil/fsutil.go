@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -456,11 +455,20 @@ func cloneDirPath(src, dst string) {
 	}
 
 	for _, dir := range dirs {
-		//fmt.Printf("cloning dir path = %#v\n", dir)
-		err = os.Mkdir(dir.dst, 0777)
-		if err != nil && !os.IsExist(err) {
-			errutil.FailOn(err)
+		if Exists(dir.dst) {
+			log.Debugf("cloneDirPath() - dst dir exists - %v", dir.dst)
+			continue
 		}
+
+		//using os.MkdirAll instead of os.Mkdir to make sure we don't miss any intermediate directories
+		//need to research when we might miss intermediate directories
+		err = os.MkdirAll(dir.dst, 0777)
+		if err != nil {
+			log.Errorf("cloneDirPath() - os.MkdirAll(%v) error - %v", dir.dst, err)
+		}
+		//if err != nil && !os.IsExist(err) {
+		//	errutil.FailOn(err)
+		//}
 
 		if err == nil {
 			if err := os.Chmod(dir.dst, dir.perms); err != nil {
@@ -596,6 +604,178 @@ func CopyRegularFile(clone bool, src, dst string, makeDir bool) error {
 			}
 		} else {
 			log.Warnf("CopyRegularFile(%v,%v)- unable to get Stat_t", src, dst)
+		}
+	}
+
+	return nil
+}
+
+// CopyAndObfuscateFile copies a regular file and performs basic file reference obfuscation
+func CopyAndObfuscateFile(
+	clone bool,
+	src string,
+	dst string,
+	makeDir bool) error {
+	log.Debugf("CopyAndObfuscateFile(%v,%v,%v,%v)", clone, src, dst, makeDir)
+
+	//need to preserve the extension because some of the app stacks
+	//depend on it for its compile/run time behavior
+	base := filepath.Base(dst)
+	ext := filepath.Ext(base)
+	base = strings.ReplaceAll(base, ".", "..")
+	base = fmt.Sprintf(".d.%s", base)
+	if ext != "" {
+		base = fmt.Sprintf("%s%s", base, ext)
+	}
+
+	dirPart := filepath.Dir(dst)
+	dstData := filepath.Join(dirPart, base)
+	err := CopyRegularFile(clone, src, dstData, makeDir)
+	if err != nil {
+		return err
+	}
+
+	err = os.Symlink(base, dst)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// AppendToFile appends the provided data to the target file
+func AppendToFile(target string, data []byte, preserveTimes bool) error {
+	if target == "" || len(data) == 0 {
+		return nil
+	}
+
+	tfi, err := os.Stat(target)
+	if err != nil {
+		return err
+	}
+
+	var ssi SysStat
+	if rawSysStat, ok := tfi.Sys().(*syscall.Stat_t); ok {
+		ssi = SysStatInfo(rawSysStat)
+	}
+
+	tf, err := os.OpenFile(target, os.O_WRONLY|os.O_APPEND, 0644)
+	if err != nil {
+		return err
+	}
+
+	defer tf.Close()
+
+	_, err = tf.Write(data)
+	if err != nil {
+		return err
+	}
+
+	if preserveTimes && ssi.Ok {
+		if err := UpdateFileTimes(target, ssi.Atime, ssi.Mtime); err != nil {
+			log.Warnf("AppendToFile(%v) - UpdateFileTimes error", target)
+		}
+	}
+
+	return nil
+}
+
+type ReplaceInfo struct {
+	PathSuffix   string
+	IsMatchRegex string
+	Match        string
+	Replace      string
+}
+
+// ReplaceFileData replaces the selected file bytes with the caller provided bytes
+func ReplaceFileData(target string, replace []ReplaceInfo, preserveTimes bool) error {
+	if target == "" || len(replace) == 0 {
+		return nil
+	}
+
+	tfi, err := os.Stat(target)
+	if err != nil {
+		return err
+	}
+
+	var ssi SysStat
+	if rawSysStat, ok := tfi.Sys().(*syscall.Stat_t); ok {
+		ssi = SysStatInfo(rawSysStat)
+	}
+
+	raw, err := os.ReadFile(target)
+	if err != nil {
+		return err
+	}
+
+	var replaced bool
+	for _, r := range replace {
+		if r.PathSuffix != "" {
+			if !strings.HasSuffix(target, r.PathSuffix) {
+				continue
+			}
+		}
+
+		if r.Match == "" || r.Replace == "" {
+			continue
+		}
+
+		raw = bytes.ReplaceAll(raw, []byte(r.Match), []byte(r.Replace))
+		replaced = true
+	}
+
+	if replaced {
+		err = os.WriteFile(target, raw, 0644)
+		if err != nil {
+			return err
+		}
+
+		if preserveTimes && ssi.Ok {
+			if err := UpdateFileTimes(target, ssi.Atime, ssi.Mtime); err != nil {
+				log.Warnf("ReplaceFileData(%v) - UpdateFileTimes error", target)
+			}
+		}
+	}
+
+	return nil
+}
+
+type DataUpdaterFn func(target string, data []byte) ([]byte, error)
+
+// UpdateFileData updates all file data in target file using the updater function
+func UpdateFileData(target string, updater DataUpdaterFn, preserveTimes bool) error {
+	if target == "" || updater == nil {
+		return nil
+	}
+
+	tfi, err := os.Stat(target)
+	if err != nil {
+		return err
+	}
+
+	var ssi SysStat
+	if rawSysStat, ok := tfi.Sys().(*syscall.Stat_t); ok {
+		ssi = SysStatInfo(rawSysStat)
+	}
+
+	raw, err := os.ReadFile(target)
+	if err != nil {
+		return err
+	}
+
+	raw, err = updater(target, raw)
+	if err != nil {
+		return err
+	}
+
+	err = os.WriteFile(target, raw, 0644)
+	if err != nil {
+		return err
+	}
+
+	if preserveTimes && ssi.Ok {
+		if err := UpdateFileTimes(target, ssi.Atime, ssi.Mtime); err != nil {
+			log.Warnf("ReplaceFileData(%v) - UpdateFileTimes error", target)
 		}
 	}
 
@@ -1345,7 +1525,7 @@ func LoadStructFromFile(filePath string, out interface{}) error {
 		return err
 	}
 
-	raw, err := ioutil.ReadFile(filePath)
+	raw, err := os.ReadFile(filePath)
 	if err != nil {
 		return err
 	}

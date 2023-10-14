@@ -34,6 +34,18 @@ const (
 	FlagIncludeExeFile   = "include-exe-file"
 	FlagIncludeShell     = "include-shell"
 
+	FlagIncludeWorkdir            = "include-workdir"
+	FlagWorkdirExclude            = "workdir-exclude"
+	FlagIncludeAppImageAddCopyAll = "include-app-image-addcopy-all"
+	FlagIncludeAppImageRun        = "include-app-image-run"
+	FlagIncludeAppImageAll        = "include-app-image-all"
+
+	FlagAppImageStartInst       = "app-image-start-instruction"
+	FlagAppImageStartLayerCount = "app-image-start-layer-count"
+	FlagAppImageStartInstGroup  = "app-image-start-instruction-group"
+	FlagAppImageStartDetect     = "app-image-start-detect"
+	FlagAppImageDockerfile      = "app-image-dockerfile" //TODO: make it work with FlagBuildFromDockerfile too
+
 	FlagIncludePathsCreportFile = "include-paths-creport-file"
 
 	FlagIncludeOSLibsNet = "include-oslibs-net"
@@ -93,6 +105,9 @@ const (
 	FlagCBOTarget           = "cbo-target"
 	FlagCBONetwork          = "cbo-network"
 	FlagCBOCacheFrom        = "cbo-cache-from"
+
+	//Experimenal flags
+	FlagObfuscateMetadata = "obfuscate-metadata"
 )
 
 // Build command flag usage info
@@ -113,6 +128,13 @@ const (
 	FlagIncludeBinUsage       = "Keep binary from original image (executable or shared object using its absolute path)"
 	FlagIncludeExeUsage       = "Keep executable from original image (by executable name)"
 	FlagIncludeShellUsage     = "Keep basic shell functionality"
+
+	FlagIncludeWorkdirUsage = "Keep files in working directory"
+
+	FlagIncludeAppImageAllUsage     = "Keep everything in the app part of the container image"
+	FlagAppImageStartInstGroupUsage = "Instruction group (reverse) index that indicates where the app starts in the container image"
+	FlagAppImageStartInstUsage      = "Instruction (prefix) that indicates where the app starts in the container image"
+	FlagAppImageDockerfileUsage     = "Path to app image Dockerfile (used to determine where the application part of the image starts)"
 
 	FlagIncludePathsCreportFileUsage = "Keep files from the referenced creport"
 
@@ -172,6 +194,8 @@ const (
 	FlagCBOTargetUsage           = "Target stage to build for multi-stage Dockerfiles"
 	FlagCBONetworkUsage          = "Networking mode to use for the RUN instructions at build-time"
 	FlagCBOCacheFromUsage        = "Add an image to the build cache"
+
+	FlagObfuscateMetadataUsage = "Obfuscate the standard system and application metadata to make it more challenging to identify the image components"
 )
 
 var Flags = map[string]cli.Flag{
@@ -232,6 +256,33 @@ var Flags = map[string]cli.Flag{
 		Name:    FlagIncludeShell,
 		Usage:   FlagIncludeShellUsage,
 		EnvVars: []string{"DSLIM_INCLUDE_SHELL"},
+	},
+	////
+	FlagIncludeWorkdir: &cli.BoolFlag{
+		Name:    FlagIncludeWorkdir,
+		Usage:   FlagIncludeWorkdirUsage,
+		EnvVars: []string{"DSLIM_INCLUDE_WORKDIR"},
+	},
+	FlagIncludeAppImageAll: &cli.BoolFlag{
+		Name:    FlagIncludeAppImageAll,
+		Usage:   FlagIncludeAppImageAllUsage,
+		EnvVars: []string{"DSLIM_INCLUDE_APP_IMAGE_ALL"},
+	},
+	FlagAppImageStartInstGroup: &cli.IntFlag{
+		Name:    FlagAppImageStartInstGroup,
+		Value:   -1,
+		Usage:   FlagAppImageStartInstGroupUsage,
+		EnvVars: []string{"DSLIM_APP_IMAGE_START_INST_GROUP"},
+	},
+	FlagAppImageStartInst: &cli.StringFlag{
+		Name:    FlagAppImageStartInst,
+		Usage:   FlagAppImageStartInstUsage,
+		EnvVars: []string{"DSLIM_APP_IMAGE_START_INST"},
+	},
+	FlagAppImageDockerfile: &cli.StringFlag{
+		Name:    FlagAppImageDockerfile,
+		Usage:   FlagAppImageDockerfileUsage,
+		EnvVars: []string{"DSLIM_APP_IMAGE_DOCKERFILE"},
 	},
 	////
 	FlagIncludePathsCreportFile: &cli.StringFlag{
@@ -459,7 +510,7 @@ var Flags = map[string]cli.Flag{
 	},
 	FlagImageBuildEngine: &cli.StringFlag{
 		Name:    FlagImageBuildEngine,
-		Value:   "docker",
+		Value:   IBEInternal,
 		Usage:   FlagImageBuildEngineUsage,
 		EnvVars: []string{"DSLIM_IMAGE_BUILD_ENG"},
 	},
@@ -508,6 +559,12 @@ var Flags = map[string]cli.Flag{
 		Value:   "",
 		Usage:   FlagIncludeExeFileUsage,
 		EnvVars: []string{"DSLIM_INCLUDE_EXE_FILE"},
+	},
+	////
+	FlagObfuscateMetadata: &cli.BoolFlag{
+		Name:    FlagObfuscateMetadata,
+		Usage:   FlagObfuscateMetadataUsage,
+		EnvVars: []string{"DSLIM_OBFUSCATE_METADATA"},
 	},
 }
 

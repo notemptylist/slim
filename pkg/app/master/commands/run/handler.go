@@ -6,11 +6,11 @@ import (
 	"github.com/docker-slim/docker-slim/pkg/app"
 	"github.com/docker-slim/docker-slim/pkg/app/master/commands"
 	"github.com/docker-slim/docker-slim/pkg/app/master/container"
-	"github.com/docker-slim/docker-slim/pkg/app/master/docker/dockerclient"
 	"github.com/docker-slim/docker-slim/pkg/app/master/inspectors/image"
 	"github.com/docker-slim/docker-slim/pkg/app/master/signals"
 	"github.com/docker-slim/docker-slim/pkg/app/master/version"
 	"github.com/docker-slim/docker-slim/pkg/command"
+	"github.com/docker-slim/docker-slim/pkg/docker/dockerclient"
 	"github.com/docker-slim/docker-slim/pkg/report"
 	"github.com/docker-slim/docker-slim/pkg/util/errutil"
 	"github.com/docker-slim/docker-slim/pkg/util/fsutil"
@@ -60,7 +60,7 @@ func OnCommand(
 				"message": exitMsg,
 			})
 
-		exitCode := commands.ECTCommon | commands.ECNoDockerConnectInfo
+		exitCode := commands.ECTCommon | commands.ECCNoDockerConnectInfo
 		xc.Out.State("exited",
 			ovars{
 				"exit.code": exitCode,
